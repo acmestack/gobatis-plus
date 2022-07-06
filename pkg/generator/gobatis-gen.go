@@ -7,6 +7,7 @@ package generator
 
 import (
 	"fmt"
+	"github.com/xfali/gobatis-plus/pkg/plugin"
 	"io"
 	"k8s.io/gengo/args"
 	"k8s.io/gengo/examples/set-gen/sets"
@@ -16,11 +17,6 @@ import (
 	"k8s.io/klog/v2"
 	"path/filepath"
 	"strings"
-)
-
-const (
-	delimiterLeft  = "{{"
-	delimiterRight = "}}"
 )
 
 var (
@@ -78,9 +74,9 @@ func GenPackages(ctx *generator.Context, args *args.GeneratorArgs) generator.Pac
 		header = append(header, boilerplate...)
 	}
 
-	for i, dir := range inputs {
-		klog.V(5).Infof("Parsing pkg %s\n", dir)
-		pkg := ctx.Universe[i]
+	for in := range inputs {
+		klog.V(5).Infof("Parsing pkg %s\n", in)
+		pkg := ctx.Universe[in]
 		if pkg == nil {
 			continue
 		}
@@ -92,7 +88,7 @@ func GenPackages(ctx *generator.Context, args *args.GeneratorArgs) generator.Pac
 			continue
 		}
 
-		klog.V(5).Infof("Generating package %s...\n", dir)
+		klog.V(5).Infof("Generating package %s...\n", in)
 
 		pkgs = append(pkgs, &generator.DefaultPackage{
 			PackageName: strings.Split(filepath.Base(pkg.Path), ".")[0],
@@ -180,9 +176,11 @@ func (g *gobatisGen) PackageConsts(ctx *generator.Context) []string {
 
 // GenerateType should emit the code for a particular type.
 func (g *gobatisGen) GenerateType(ctx *generator.Context, t *types.Type, w io.Writer) error {
-	sw := generator.NewSnippetWriter(w, ctx, delimiterLeft, delimiterRight)
-	sw = sw
-	return nil
+	p := plugin.FindPlugin(t)
+	if p == nil {
+		return fmt.Errorf("Cannot handle type: %s. ", t.String())
+	}
+	return p.Generate(ctx, w, t)
 }
 
 func parseAnnotations(annotation string, t *types.Type) gobatisAnnotions {
