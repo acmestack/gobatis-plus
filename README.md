@@ -16,7 +16,7 @@ gobatis-plus -i github.com/xfali/gobatis-plus/example -o tmp
 // +gobatis:enable
 package example
 ```
-2. add your code
+2. Add your code
 ```
 // +gobatis:data:tablename=tbl_user
 type UserDo struct {
