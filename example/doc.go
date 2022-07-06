@@ -1,0 +1,2 @@
+// +gobatis:enable
+package example

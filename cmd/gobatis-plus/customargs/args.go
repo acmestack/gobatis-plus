@@ -18,7 +18,7 @@ type gobatisArgs struct {
 func NewDefault() (*args.GeneratorArgs, *gobatisArgs) {
 	args := args.Default().WithoutDefaultFlagParsing()
 	cusArgs := &gobatisArgs{
-		Prefix: "gobatis",
+		Prefix: "+gobatis:",
 	}
 	args.CustomArgs = cusArgs
 	args.OutputFileBaseName = "zz_generated"
