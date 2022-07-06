@@ -1,0 +1,133 @@
+{{- $Module := currentModule -}}
+{{- $TableInfo := currentModuleTableInfo -}}
+{{- $ModuleName :=  firstUpper $Module.Name -}}
+{{- $SessionKeyName := firstLower $TableInfo.DbName | printf "_%s_gobatis_sess_key" -}}
+
+package {{$Module.Pkg}}
+
+import (
+	"context"
+	"github.com/xfali/gobatis"
+	"github.com/xfali/pagehelper"
+	"github.com/xfali/xlog"
+	"{{.Value.App.ModName}}/pkg/apis/{{$Module.Pkg}}"
+)
+
+type {{$ModuleName}}ServicImpl struct {
+	log     xlog.Logger
+	SessMgr *gobatis.SessionManager `inject:"{{$TableInfo.DbName}}"`
+}
+
+func New{{$ModuleName}}Service() *{{$ModuleName}}ServicImpl {
+	return &{{$ModuleName}}ServicImpl{
+		log: xlog.GetLogger(),
+	}
+}
+
+func (s *{{$ModuleName}}ServicImpl) Query{{$ModuleName}}(ctx context.Context, request {{$Module.Pkg}}.{{$ModuleName}}) (*{{$Module.Pkg}}.{{$ModuleName}}, error) {
+	sess := s.getSession(ctx)
+	if sess == nil {
+		sess = s.SessMgr.NewSession().SetContext(ctx)
+	}
+	v, err := Select{{$ModuleName}}(sess, request)
+	if err != nil {
+		return nil, err
+	}
+	if len(v) == 0 {
+		return nil, nil
+	}
+	return &v[0], nil
+}
+
+func (s *{{$ModuleName}}ServicImpl) Query{{$ModuleName}}List(ctx context.Context, request {{$Module.Pkg}}.{{$ModuleName}}, page int64, pageSize int64) ([]{{$Module.Pkg}}.{{$ModuleName}}, int64, error) {
+	sess := s.getSession(ctx)
+	if sess == nil {
+		sess = s.SessMgr.NewSession()
+	}
+	{{- if .Config.Gobatis.Paging.Total}}
+	sqlCtx := pagehelper.C(ctx).PageWithCount(page, pageSize, "").Build()
+	{{- else}}
+	sqlCtx := pagehelper.C(ctx).Page(page, pageSize).Build()
+	{{- end}}
+	v, err := Select{{$ModuleName}}(sess.SetContext(sqlCtx), request)
+	if err != nil {
+		return nil, 0, err
+	}
+	pageInfo := pagehelper.GetPageInfo(sqlCtx)
+	if pageInfo == nil {
+		return v, 0, nil
+	} else {
+		return v, pageInfo.GetTotal(), nil
+	}
+}
+
+func (s *{{$ModuleName}}ServicImpl) Insert{{$ModuleName}}(ctx context.Context, request {{$Module.Pkg}}.{{$ModuleName}}) (int64, error) {
+	sess := s.getSession(ctx)
+	if sess == nil {
+		sess = s.SessMgr.NewSession().SetContext(ctx)
+	}
+	_, id, err := Insert{{$ModuleName}}(sess, request)
+	if err != nil {
+		return -1, err
+	}
+	return id, nil
+}
+
+func (s *{{$ModuleName}}ServicImpl) Insert{{$ModuleName}}Batch(ctx context.Context, requests ...{{$Module.Pkg}}.{{$ModuleName}}) error {
+	sess := s.getSession(ctx)
+	if sess == nil {
+		sess = s.SessMgr.NewSession().SetContext(ctx)
+	}
+	_, _, err := InsertBatch{{$ModuleName}}(sess, requests)
+	return err
+}
+
+func (s *{{$ModuleName}}ServicImpl) Update{{$ModuleName}}(ctx context.Context, request {{$Module.Pkg}}.{{$ModuleName}}) (bool, error) {
+	sess := s.getSession(ctx)
+	if sess == nil {
+		sess = s.SessMgr.NewSession().SetContext(ctx)
+	}
+	c, err := Update{{$ModuleName}}(sess, request)
+	if err != nil {
+		return false, err
+	}
+	return c > 0, nil
+}
+
+func (s *{{$ModuleName}}ServicImpl) Delete{{$ModuleName}}(ctx context.Context, request {{$Module.Pkg}}.{{$ModuleName}}) (bool, error) {
+	sess := s.getSession(ctx)
+	if sess == nil {
+		sess = s.SessMgr.NewSession().SetContext(ctx)
+	}
+	c, err := Delete{{$ModuleName}}(sess, request)
+	if err != nil {
+		return false, err
+	}
+	return c > 0, nil
+}
+
+// Transaction
+func (s *{{$ModuleName}}ServicImpl) Tx(ctx context.Context, action func(ctx context.Context) error) error {
+	sess := s.getSession(ctx)
+	if sess == nil {
+		return s.SessMgr.NewSession().SetContext(ctx).Tx(func(sess *gobatis.Session) error {
+			return action(s.withSession(ctx, sess))
+		})
+	} else {
+		return action(ctx)
+	}
+}
+
+func (s *{{$ModuleName}}ServicImpl) getSession(ctx context.Context) *gobatis.Session {
+	v := ctx.Value({{$SessionKeyName}})
+	if v == nil {
+		return nil
+	}
+	return v.(*gobatis.Session)
+}
+
+func (s *{{$ModuleName}}ServicImpl) withSession(ctx context.Context, sess *gobatis.Session) context.Context {
+	return context.WithValue(ctx, {{$SessionKeyName}}, sess)
+}
+
+var {{$SessionKeyName}} = "{{$SessionKeyName}}"
