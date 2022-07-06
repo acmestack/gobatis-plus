@@ -13,24 +13,36 @@ gobatis-plus -i github.com/xfali/gobatis-plus/example -o tmp
 ## Package
 1. Add doc.go to enable gobatis in package
 ```
-// gobatis:enable
+// +gobatis:enable
 package example
 ```
 2. add your code
 ```
-// gobatis:data
+// +gobatis:data:tablename=tbl_user
 type UserDo struct {
-	UserId     int64     `tableId:"user_id,idType=auto"`
-	UserName   string    `tableField:"user_name"`
-	Status     int8      `tableField:"status" tableLogic:"0,delval=1"`
-	CreateTime time.Time `tableField:"create_time,fill=insert"`
-	RecVersion uint64    `tableRecVer:"rec_var"`
+	// +gobatis:tableid:value=user_id,idType=auto
+	UserId int64
+
+	// +gobatis:tablefield:value=user_name
+	UserName string
+
+	// +gobatis:tablefield:value=status
+	// +gobatis:tablelogic:value=0,delval=1
+	Status int8
+
+	// +gobatis:tablefield:value=create_time,fill=insert
+	CreateTime time.Time
+
+	// +gobatis:tablefield:value=rec_var
+	// +gobatis:version
+	RecVersion uint64
 }
 
-// gobatis:mapper
+// +gobatis:mapper
 type UserMapper interface {
-	// gobatis:select="select * from "
-
-	Insert(vo ...UserDo) (err error)
+	mapper.BaseMapper[UserDo]
+	
+	// +gobatis:select="select * from tbl_user where id = #{UserDo.UserId}"
+	Select(user UserDo) (users []UserDo, err error)
 }
 ```

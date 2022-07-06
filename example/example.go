@@ -5,9 +5,12 @@
 
 package example
 
-import "time"
+import (
+	"github.com/xfali/gobatis-plus/pkg/mapper"
+	"time"
+)
 
-// +gobatis:data
+// +gobatis:data:tablename=tbl_user
 type UserDo struct {
 	// +gobatis:tableid:value=user_id,idType=auto
 	UserId int64
@@ -29,8 +32,8 @@ type UserDo struct {
 
 // +gobatis:mapper
 type UserMapper interface {
-	// +gobatis:select="select * from tbl_user where id = #{UserDo.UserId}"
-	Select(vo UserDo) ([]UserDo, error)
+	mapper.BaseMapper[UserDo]
 
-	Insert(vo ...UserDo) (err error)
+	// +gobatis:select="select * from tbl_user where id = #{UserDo.UserId}"
+	Select(user UserDo) (users []UserDo, err error)
 }
