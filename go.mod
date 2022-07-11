@@ -1,4 +1,4 @@
-module github.com/xfali/gobatis-plus
+module github.com/acmestack/gobatis-plus
 
 go 1.18
 
