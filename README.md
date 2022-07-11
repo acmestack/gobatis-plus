@@ -7,7 +7,7 @@ gobatis-plus -i {YOUR_PACKAGE_DIR} -o {OUTPUT_DIR}
 ```
 example:
 ```
-gobatis-plus -i github.com/xfali/gobatis-plus/example -o tmp
+gobatis-plus -i github.com/acmestack/gobatis-plus/example -o tmp
 ```
 
 ## Package
