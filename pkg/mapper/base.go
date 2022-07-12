@@ -17,7 +17,9 @@
 
 package mapper
 
-import "context"
+import (
+	"context"
+)
 
 type BaseMapper[T any] interface {
 	Insert(ctx context.Context, entity T) int64

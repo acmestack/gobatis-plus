@@ -20,6 +20,7 @@ package generator
 import (
 	"fmt"
 	"io"
+	"log"
 	"path/filepath"
 	"strings"
 
@@ -77,6 +78,7 @@ func GenPackages(ctx *generator.Context, args *args.GeneratorArgs) generator.Pac
 	pkgs := generator.Packages{}
 	annotation := args.CustomArgs.(fmt.Stringer).String()
 
+	log.Println(args)
 	boilerplate, err := args.LoadGoBoilerplate()
 	if err != nil {
 		klog.Warningf("LoadGoBoilerplate failed: %v. ", err)
