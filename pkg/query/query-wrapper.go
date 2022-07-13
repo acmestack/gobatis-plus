@@ -6,10 +6,11 @@ import (
 
 type QueryWrapper[T any] struct {
 	MapCondition map[string]any
+	Entity       *T
 }
 
 func (queryWrapper *QueryWrapper[T]) Eq(column string, val any) mapper.Wrapper[T] {
-	queryWrapper.initMap()
+	queryWrapper.init()
 	queryWrapper.MapCondition[column] = val
 	return queryWrapper
 }
@@ -58,8 +59,11 @@ func (queryWrapper *QueryWrapper[T]) NotBetween(column string, val1 any, val2 an
 	return nil
 }
 
-func (queryWrapper *QueryWrapper[T]) initMap() {
+func (queryWrapper *QueryWrapper[T]) init() {
 	if len(queryWrapper.MapCondition) == 0 {
 		queryWrapper.MapCondition = make(map[string]any, 16)
+	}
+	if queryWrapper.Entity == nil {
+		queryWrapper.Entity = new(T)
 	}
 }
