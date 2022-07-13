@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/acmestack/gobatis-plus/example"
 	"github.com/acmestack/gobatis-plus/pkg/query"
@@ -8,5 +9,7 @@ import (
 
 func main() {
 	queryWrapper := query.QueryWrapper[example.UserDo]{}
-	fmt.Println(queryWrapper)
+	queryWrapper.Eq("age", 1).Eq("aa", 2)
+	marshal, _ := json.Marshal(queryWrapper.MapCondition)
+	fmt.Println(string(marshal))
 }
