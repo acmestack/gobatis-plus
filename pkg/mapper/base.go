@@ -40,5 +40,5 @@ type BaseMapper[T any] interface {
 
 	SelectCount(ctx context.Context, entity T) int64
 
-	SelectList(ctx context.Context, queryWrapper Wrapper[T]) []T
+	SelectList(ctx context.Context, queryWrapper QueryWrapper[T]) []T
 }

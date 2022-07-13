@@ -1,15 +1,18 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/acmestack/gobatis-plus/example"
-	"github.com/acmestack/gobatis-plus/pkg/query"
+	"github.com/acmestack/gobatis-plus/pkg/mapper"
+	"github.com/acmestack/gobatis-plus/test/wrapper/impl"
 )
 
 func main() {
-	queryWrapper := query.QueryWrapper[example.UserDo]{}
-	queryWrapper.Eq("age", 1).Eq("aa", 2)
-	marshal, _ := json.Marshal(queryWrapper)
+	userMapper := impl.UserMapperImpl[impl.TestTable]{}
+	queryWrapper := mapper.QueryWrapper[impl.TestTable]{}
+	queryWrapper.Eq("id", 4)
+	list := userMapper.SelectList(context.Background(), queryWrapper)
+	marshal, _ := json.Marshal(list)
 	fmt.Println(string(marshal))
 }
