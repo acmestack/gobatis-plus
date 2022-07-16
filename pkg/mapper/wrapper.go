@@ -30,4 +30,6 @@ type Wrapper[T any] interface {
 	Between(column string, val1 any, val2 any) Wrapper[T]
 
 	NotBetween(column string, val1 any, val2 any) Wrapper[T]
+
+	Select(columns ...string) Wrapper[T]
 }
