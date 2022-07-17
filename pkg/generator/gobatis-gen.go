@@ -33,7 +33,7 @@ import (
 )
 
 var (
-	gobatisImports = []string{"github.com/xfali/gobatis"}
+	gobatisImports = []string{"github.com/acmestack/gobatis"}
 )
 
 type gobatisAnnotion struct {

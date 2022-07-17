@@ -2,7 +2,7 @@ package mapper
 
 import (
 	"context"
-	"github.com/xfali/gobatis"
+	"github.com/acmestack/gobatis"
 )
 
 type BaseMapper[T any] struct {

@@ -3,10 +3,10 @@ package impl
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/acmestack/gobatis"
 	"github.com/acmestack/gobatis-plus/pkg/mapper"
-	"github.com/xfali/gobatis"
-	"github.com/xfali/gobatis/datasource"
-	"github.com/xfali/gobatis/factory"
+	"github.com/acmestack/gobatis/datasource"
+	"github.com/acmestack/gobatis/factory"
 	"testing"
 )
 

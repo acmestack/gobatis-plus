@@ -2,7 +2,7 @@ package mapper
 
 import (
 	"github.com/acmestack/gobatis-plus/pkg/constants"
-	"github.com/xfali/gobatis/builder"
+	"github.com/acmestack/gobatis/builder"
 	"reflect"
 )
 
