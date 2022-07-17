@@ -13,7 +13,7 @@ import (
 
 func TestUserMapperImpl_SelectList(t *testing.T) {
 	mgr := gobatis.NewSessionManager(connect())
-	userMapper := UserMapperImpl[TestTable]{SessMgr: mgr}
+	userMapper := UserMapperImpl[TestTable]{mapper.BaseMapper[TestTable]{SessMgr: mgr}}
 	queryWrapper := mapper.QueryWrapper[TestTable]{}
 	queryWrapper.Eq("username", 4).Select("id", "username", "password")
 	list := userMapper.SelectList(context.Background(), queryWrapper)

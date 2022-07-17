@@ -21,7 +21,7 @@ import (
 	"context"
 )
 
-type BaseMapper[T any] interface {
+type Base[T any] interface {
 	Insert(ctx context.Context, entity T) int64
 
 	InsertBatch(ctx context.Context, entities ...T) (int64, int64)

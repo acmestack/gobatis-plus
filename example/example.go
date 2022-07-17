@@ -45,7 +45,7 @@ type UserDo struct {
 
 // +gobatis:mapper
 type UserMapper interface {
-	mapper.BaseMapper[UserDo]
+	mapper.Base[UserDo]
 
 	// +gobatis:select="select * from tbl_user where id = #{UserDo.UserId}"
 	Select(user UserDo) (users []UserDo, err error)
