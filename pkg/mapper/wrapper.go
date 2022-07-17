@@ -27,9 +27,9 @@ type Wrapper[T any] interface {
 
 	LikeRight(column string, val1 any) Wrapper[T]
 
-	Between(column string, val1 any, val2 any) Wrapper[T]
+	And() Wrapper[T]
 
-	NotBetween(column string, val1 any, val2 any) Wrapper[T]
+	Or() Wrapper[T]
 
 	Select(columns ...string) Wrapper[T]
 }

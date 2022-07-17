@@ -1,7 +1,6 @@
 package impl
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/acmestack/gobatis-plus/pkg/mapper"
@@ -14,9 +13,9 @@ import (
 func TestUserMapperImpl_SelectList(t *testing.T) {
 	mgr := gobatis.NewSessionManager(connect())
 	userMapper := UserMapperImpl[TestTable]{mapper.BaseMapper[TestTable]{SessMgr: mgr}}
-	queryWrapper := mapper.QueryWrapper[TestTable]{}
-	queryWrapper.Eq("username", 4).Select("id", "username", "password")
-	list := userMapper.SelectList(context.Background(), queryWrapper)
+	queryWrapper := &mapper.QueryWrapper[TestTable]{}
+	queryWrapper.Eq("username", "user1")
+	list, _ := userMapper.SelectList(queryWrapper)
 	marshal, _ := json.Marshal(list)
 	fmt.Println(string(marshal))
 }
@@ -26,11 +25,11 @@ func connect() factory.Factory {
 		gobatis.SetMaxConn(100),
 		gobatis.SetMaxIdleConn(50),
 		gobatis.SetDataSource(&datasource.MysqlDataSource{
-			Host:     "123.57.13.246",
+			Host:     "localhost",
 			Port:     3306,
-			DBName:   "http_info",
+			DBName:   "test",
 			Username: "root",
-			Password: "root-abcd-1234",
+			Password: "123456",
 			Charset:  "utf8",
 		}))
 }

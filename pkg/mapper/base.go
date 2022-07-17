@@ -17,28 +17,24 @@
 
 package mapper
 
-import (
-	"context"
-)
-
 type Base[T any] interface {
-	Insert(ctx context.Context, entity T) int64
+	Insert(entity T) int64
 
-	InsertBatch(ctx context.Context, entities ...T) (int64, int64)
+	InsertBatch(entities ...T) (int64, int64)
 
-	DeleteById(ctx context.Context, id any) int64
+	DeleteById(id any) int64
 
-	DeleteBatchIds(ctx context.Context, ids []any) int64
+	DeleteBatchIds(ids []any) int64
 
-	UpdateById(ctx context.Context, entity T) int64
+	UpdateById(entity T) int64
 
-	SelectById(ctx context.Context, id any) T
+	SelectById(id any) T
 
-	SelectBatchIds(ctx context.Context, ids []any) []T
+	SelectBatchIds(ids []any) []T
 
-	SelectOne(ctx context.Context, entity T) T
+	SelectOne(entity T) T
 
-	SelectCount(ctx context.Context, entity T) int64
+	SelectCount(entity T) int64
 
-	SelectList(ctx context.Context, queryWrapper QueryWrapper[T]) []T
+	SelectList(queryWrapper QueryWrapper[T]) ([]T, error)
 }
