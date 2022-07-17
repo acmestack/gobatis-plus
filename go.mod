@@ -10,6 +10,9 @@ require (
 
 require (
 	github.com/go-logr/logr v0.2.0 // indirect
+	github.com/go-sql-driver/mysql v1.6.0 // indirect
+	github.com/xfali/gobatis v0.2.6 // indirect
+	github.com/xfali/loadbalance v0.0.1 // indirect
 	golang.org/x/mod v0.2.0 // indirect
 	golang.org/x/tools v0.0.0-20200505023115-26f46d2f7ef8 // indirect
 	golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543 // indirect
