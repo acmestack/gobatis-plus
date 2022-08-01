@@ -3,7 +3,7 @@ module github.com/acmestack/gobatis-plus
 go 1.18
 
 require (
-	github.com/acmestack/gobatis v0.2.7
+	github.com/acmestack/gobatis v0.2.8
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/spf13/pflag v1.0.5
 	k8s.io/gengo v0.0.0-20220613173612-397b4ae3bce7
