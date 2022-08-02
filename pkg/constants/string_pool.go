@@ -15,32 +15,17 @@
  * limitations under the License.
  */
 
-package mapper
+package constants
 
-type Wrapper[T any] interface {
-	Eq(column string, val any) Wrapper[T]
-
-	Ne(column string, val any) Wrapper[T]
-
-	Gt(column string, val any) Wrapper[T]
-
-	Ge(column string, val any) Wrapper[T]
-
-	Lt(column string, val any) Wrapper[T]
-
-	Le(column string, val any) Wrapper[T]
-
-	Like(column string, val any) Wrapper[T]
-
-	NotLike(column string, val any) Wrapper[T]
-
-	LikeLeft(column string, val any) Wrapper[T]
-
-	LikeRight(column string, val1 any) Wrapper[T]
-
-	And() Wrapper[T]
-
-	Or() Wrapper[T]
-
-	Select(columns ...string) Wrapper[T]
-}
+const (
+	RIGHT_BRACE     = "}"
+	HASH_LEFT_BRACE = "#{"
+	MAPPING         = "mapping"
+	SPACE           = " "
+	ASTERISK        = "*"
+	CONNECTION      = "-"
+	COUNT           = "count(*)"
+	LEFT_BRACKET    = "("
+	RIGHT_BRACKET   = ")"
+	COMMA           = ","
+)
