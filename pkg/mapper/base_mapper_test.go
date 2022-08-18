@@ -93,3 +93,15 @@ func TestUserMapperImpl_SelectById(t *testing.T) {
 	marshal, _ := json.Marshal(entity)
 	fmt.Println(string(marshal))
 }
+
+func TestUserMapperImpl_Save(t *testing.T) {
+	mgr := gobatis.NewSessionManager(connect())
+	userMapper := BaseMapper[TestTable]{SessMgr: mgr}
+	table := TestTable{Username: "zouchangfu9999", Password: "123456"}
+	save, err := userMapper.Save(table)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	fmt.Println(save)
+
+}

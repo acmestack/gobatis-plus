@@ -19,6 +19,7 @@ package mapper
 
 import (
 	"context"
+	"fmt"
 	"github.com/acmestack/gobatis"
 	"github.com/acmestack/gobatis-plus/pkg/constants"
 	"reflect"
@@ -36,8 +37,70 @@ type BaseMapper[T any] struct {
 
 type BuildSqlFunc func(columns string, tableName string) string
 
-func (userMapper *BaseMapper[T]) Save(entity T) int64 {
-	return 0
+func (userMapper *BaseMapper[T]) Save(entity T) (int64, error) {
+	tableName := userMapper.getTableName()
+	sess := userMapper.SessMgr.NewSession()
+	builder := strings.Builder{}
+	builder.WriteString(constants.INSERT + constants.SPACE + constants.INTO + constants.SPACE + tableName + constants.SPACE + constants.LEFT_BRACKET)
+	entityType := reflect.TypeOf(entity)
+	entityTypeNum := entityType.NumField()
+	for i := 0; i < entityTypeNum; i++ {
+		tag := entityType.Field(i).Tag
+		column := tag.Get("column")
+		if column == "" {
+			continue
+		}
+		if i != entityTypeNum-1 {
+			// 如果不是最后一个字段，需要在字段后面拼接逗号
+			builder.WriteString(column + constants.COMMA)
+		} else {
+			// 如果是最后一个字段，需要在字段后面拼接右括号
+			builder.WriteString(column + constants.RIGHT_BRACKET)
+		}
+	}
+
+	builder.WriteString(constants.SPACE + constants.VALUES + constants.SPACE + constants.LEFT_BRACKET)
+	var paramMap = map[string]any{}
+	entityValue := reflect.ValueOf(entity)
+	entityValueNum := entityValue.NumField()
+
+	for i := 0; i < entityValueNum; i++ {
+		tag := entityType.Field(i).Tag
+		column := tag.Get("column")
+		if column == "" {
+			continue
+		}
+		v := entityValue.Field(i).Interface()
+		mapping := userMapper.getMappingSeq()
+		switch value := v.(type) {
+		case string:
+			paramMap[mapping] = value
+		case int64:
+			paramMap[mapping] = value
+		}
+
+		if i != entityValueNum-1 {
+			builder.WriteString(constants.HASH_LEFT_BRACE + mapping + constants.RIGHT_BRACE + constants.COMMA)
+		} else {
+			builder.WriteString(constants.HASH_LEFT_BRACE + mapping + constants.RIGHT_BRACE + constants.RIGHT_BRACKET)
+		}
+	}
+
+	fmt.Println(builder.String())
+
+	sqlId := buildSqlId(constants.INTO)
+	err := gobatis.RegisterSql(sqlId, builder.String())
+	if err != nil {
+		return 0, err
+	}
+	var ret int64
+	selectRunner := sess.Insert(sqlId).Param(paramMap)
+	err = selectRunner.Result(&ret)
+	if err != nil {
+		return 0, nil
+	}
+	insertId := selectRunner.LastInsertId()
+	return insertId, nil
 }
 
 func (userMapper *BaseMapper[T]) SaveBatch(entities ...T) (int64, int64) {
@@ -79,11 +142,14 @@ func (userMapper *BaseMapper[T]) SelectById(id any) (T, error) {
 }
 func (userMapper *BaseMapper[T]) SelectBatchIds(ids []any) ([]T, error) {
 	tableName := userMapper.getTableName()
+	// 构建第一部分sql
 	sqlFirstPart := buildSelectSqlFirstPart(constants.ASTERISK, tableName)
 	var paramMap = map[string]any{}
 	build := strings.Builder{}
+	// 拼接sql
 	build.WriteString(constants.SPACE + constants.WHERE + constants.SPACE + constants.ID +
 		constants.SPACE + constants.In + constants.LEFT_BRACKET + constants.SPACE)
+
 	for index, id := range ids {
 		mapping := userMapper.getMappingSeq()
 		paramMap[mapping] = strconv.Itoa(id.(int))
@@ -163,10 +229,16 @@ func (userMapper *BaseMapper[T]) SelectCount(queryWrapper *QueryWrapper[T]) (int
 }
 
 func (userMapper *BaseMapper[T]) SelectList(queryWrapper *QueryWrapper[T]) ([]T, error) {
+	// 初始化queryWrapper，如果queryWrapper是空的，需要初始化一个新的
 	queryWrapper = userMapper.init(queryWrapper)
 
+	// 构建需要查询的字段，如果查询条件没有传入的话，默认查询所有
 	columns := userMapper.buildSelectColumns(queryWrapper)
 
+	// 构建sql语句
+	// sqlId：sql的key值
+	// sql：需要执行的sql
+	// paramMap：所有的参数封装在这个map中
 	sqlId, sql, paramMap := userMapper.buildSelectSql(queryWrapper, columns, buildSelectSqlFirstPart)
 
 	err := gobatis.RegisterSql(sqlId, sql)
@@ -203,16 +275,21 @@ func (userMapper *BaseMapper[T]) init(queryWrapper *QueryWrapper[T]) *QueryWrapp
 	return queryWrapper
 }
 
+// 构建查询条件
 func (userMapper *BaseMapper[T]) buildCondition(queryWrapper *QueryWrapper[T]) (string, map[string]any) {
 	var paramMap = map[string]any{}
 	expression := queryWrapper.Expression
 	build := strings.Builder{}
+	// 遍历所有的条件参数
 	for _, v := range expression {
+		// 如果是ParamValue的话，通过#{} 拼接数据，并且把value值存储到paramMap中，方便后面使用
+		// ParamValue 存储的是查询条件具体的值
 		if paramValue, ok := v.(ParamValue); ok {
 			mapping := userMapper.getMappingSeq()
 			paramMap[mapping] = paramValue.value
 			build.WriteString(constants.HASH_LEFT_BRACE + mapping + constants.RIGHT_BRACE + constants.SPACE)
 		} else {
+			// 拼接字段和条件
 			build.WriteString(v.(string) + constants.SPACE)
 		}
 	}
@@ -221,18 +298,24 @@ func (userMapper *BaseMapper[T]) buildCondition(queryWrapper *QueryWrapper[T]) (
 
 func (userMapper *BaseMapper[T]) buildSelectSql(queryWrapper *QueryWrapper[T], columns string, buildSqlFunc BuildSqlFunc) (string, string, map[string]any) {
 
+	// 构建查询条件
 	sqlCondition, paramMap := userMapper.buildCondition(queryWrapper)
 
+	// 获取表名称
 	tableName := userMapper.getTableName()
 
+	// 构建sql语句
 	sqlId := buildSqlId(constants.SELECT)
 
+	// 执行函数构建sql的第一部分
 	sqlFirstPart := buildSqlFunc(columns, tableName)
 
 	var sql string
 	if len(queryWrapper.Expression) > 0 {
+		// 拼接sql语句
 		sql = sqlFirstPart + constants.SPACE + constants.WHERE + constants.SPACE + sqlCondition
 	} else {
+		// 如果没有条件，查询所有数据
 		sql = sqlFirstPart
 	}
 
@@ -246,6 +329,7 @@ func (userMapper *BaseMapper[T]) getTableName() string {
 	return tableName
 }
 
+// build sql id ,may need to select a better implementation
 func buildSqlId(sqlType string) string {
 	sqlId := sqlType + constants.CONNECTION + strconv.Itoa(time.Now().Nanosecond())
 	return sqlId
