@@ -28,4 +28,5 @@ const (
 	LEFT_BRACKET    = "("
 	RIGHT_BRACKET   = ")"
 	COMMA           = ","
+	COLUMN          = "column"
 )

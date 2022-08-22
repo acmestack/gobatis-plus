@@ -37,75 +37,76 @@ type BaseMapper[T any] struct {
 
 type BuildSqlFunc func(columns string, tableName string) string
 
-func (userMapper *BaseMapper[T]) Save(entity T) (int64, error) {
-	tableName := userMapper.getTableName()
+func (userMapper *BaseMapper[T]) Save(entity T) (int, int64, error) {
 	sess := userMapper.SessMgr.NewSession()
-	builder := strings.Builder{}
-	builder.WriteString(constants.INSERT + constants.SPACE + constants.INTO + constants.SPACE + tableName + constants.SPACE + constants.LEFT_BRACKET)
-	entityType := reflect.TypeOf(entity)
-	entityTypeNum := entityType.NumField()
-	for i := 0; i < entityTypeNum; i++ {
-		tag := entityType.Field(i).Tag
-		column := tag.Get("column")
-		if column == "" {
-			continue
-		}
-		if i != entityTypeNum-1 {
-			// 如果不是最后一个字段，需要在字段后面拼接逗号
-			builder.WriteString(column + constants.COMMA)
-		} else {
-			// 如果是最后一个字段，需要在字段后面拼接右括号
-			builder.WriteString(column + constants.RIGHT_BRACKET)
-		}
-	}
+	// 构建insert语句前部分
+	// eg：insert field1,field2 into tableName values
+	firstPartBuilder := userMapper.buildInsertFirstPart()
 
-	builder.WriteString(constants.SPACE + constants.VALUES + constants.SPACE + constants.LEFT_BRACKET)
+	// 构建插入语句后半部分
+	// eg：(#{mapping1},#{mapping2},#{mapping3})
 	var paramMap = map[string]any{}
-	entityValue := reflect.ValueOf(entity)
-	entityValueNum := entityValue.NumField()
+	endPartBuilder := userMapper.buildInsertEndPart(entity, paramMap)
 
-	for i := 0; i < entityValueNum; i++ {
-		tag := entityType.Field(i).Tag
-		column := tag.Get("column")
-		if column == "" {
-			continue
-		}
-		v := entityValue.Field(i).Interface()
-		mapping := userMapper.getMappingSeq()
-		switch value := v.(type) {
-		case string:
-			paramMap[mapping] = value
-		case int64:
-			paramMap[mapping] = value
-		}
+	// 构建插件语句
+	insertSql := firstPartBuilder.String() + endPartBuilder.String()
+	fmt.Println(insertSql)
 
-		if i != entityValueNum-1 {
-			builder.WriteString(constants.HASH_LEFT_BRACE + mapping + constants.RIGHT_BRACE + constants.COMMA)
+	// 构建sqlId
+	sqlId := buildSqlId(constants.INTO)
+
+	// 注册sql
+	err := gobatis.RegisterSql(sqlId, insertSql)
+	if err != nil {
+		return 0, 0, err
+	}
+	var ret int
+	selectRunner := sess.Insert(sqlId).Param(paramMap)
+	err = selectRunner.Result(&ret)
+	if err != nil {
+		return 0, 0, err
+	}
+	insertId := selectRunner.LastInsertId()
+	return ret, insertId, nil
+}
+
+func (userMapper *BaseMapper[T]) SaveBatch(entities ...T) (int64, int64, error) {
+	sess := userMapper.SessMgr.NewSession()
+	// 构建insert语句前部分
+	// eg：insert field1,field2 into tableName values
+	builder := userMapper.buildInsertFirstPart()
+
+	var paramMap = map[string]any{}
+	for i, entity := range entities {
+		// 构建插入语句后半部分
+		// eg：(#{mapping1},#{mapping2},#{mapping3})
+		endPartBuilder := userMapper.buildInsertEndPart(entity, paramMap)
+		if i != len(entities)-1 {
+			builder.WriteString(endPartBuilder.String() + constants.COMMA)
 		} else {
-			builder.WriteString(constants.HASH_LEFT_BRACE + mapping + constants.RIGHT_BRACE + constants.RIGHT_BRACKET)
+			builder.WriteString(endPartBuilder.String())
 		}
 	}
-
 	fmt.Println(builder.String())
 
+	// 构建sqlId
 	sqlId := buildSqlId(constants.INTO)
+
+	// 注册sql
 	err := gobatis.RegisterSql(sqlId, builder.String())
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	var ret int64
 	selectRunner := sess.Insert(sqlId).Param(paramMap)
 	err = selectRunner.Result(&ret)
 	if err != nil {
-		return 0, nil
+		return 0, 0, err
 	}
 	insertId := selectRunner.LastInsertId()
-	return insertId, nil
+	return ret, insertId, nil
 }
 
-func (userMapper *BaseMapper[T]) SaveBatch(entities ...T) (int64, int64) {
-	return 0, 0
-}
 func (userMapper *BaseMapper[T]) DeleteById(id any) int64 {
 	return 0
 }
@@ -256,6 +257,60 @@ func (userMapper *BaseMapper[T]) SelectList(queryWrapper *QueryWrapper[T]) ([]T,
 	// delete sqlId
 	gobatis.UnregisterSql(sqlId)
 	return arr, nil
+}
+
+func (userMapper *BaseMapper[T]) buildInsertEndPart(entity T, paramMap map[string]any) strings.Builder {
+	builder := strings.Builder{}
+	builder.WriteString(constants.LEFT_BRACKET)
+	entityType := reflect.TypeOf(entity)
+	entityValue := reflect.ValueOf(entity)
+	entityValueNum := entityValue.NumField()
+	for i := 0; i < entityValueNum; i++ {
+		tag := entityType.Field(i).Tag
+		column := tag.Get(constants.COLUMN)
+		if column == "" {
+			continue
+		}
+		// 构建values值
+		v := entityValue.Field(i).Interface()
+		mapping := userMapper.getMappingSeq()
+		switch value := v.(type) {
+		case string:
+			paramMap[mapping] = value
+		case int64:
+			paramMap[mapping] = value
+		}
+		if i != entityValueNum-1 {
+			builder.WriteString(constants.HASH_LEFT_BRACE + mapping + constants.RIGHT_BRACE + constants.COMMA)
+		} else {
+			builder.WriteString(constants.HASH_LEFT_BRACE + mapping + constants.RIGHT_BRACE + constants.RIGHT_BRACKET)
+		}
+	}
+	return builder
+}
+
+func (userMapper *BaseMapper[T]) buildInsertFirstPart() *strings.Builder {
+	builder := strings.Builder{}
+	tableName := userMapper.getTableName()
+	builder.WriteString(constants.INSERT + constants.SPACE + constants.INTO + constants.SPACE + tableName + constants.SPACE + constants.LEFT_BRACKET)
+	entityType := reflect.TypeOf(new(T)).Elem()
+	entityTypeNum := entityType.NumField()
+	for i := 0; i < entityTypeNum; i++ {
+		tag := entityType.Field(i).Tag
+		column := tag.Get(constants.COLUMN)
+		if column == "" {
+			continue
+		}
+		if i != entityTypeNum-1 {
+			// 如果不是最后一个字段，需要在字段后面拼接逗号
+			builder.WriteString(column + constants.COMMA)
+		} else {
+			// 如果是最后一个字段，需要在字段后面拼接右括号
+			builder.WriteString(column + constants.RIGHT_BRACKET)
+		}
+	}
+	builder.WriteString(constants.SPACE + constants.VALUES + constants.SPACE)
+	return &builder
 }
 
 func (userMapper *BaseMapper[T]) buildSelectColumns(queryWrapper *QueryWrapper[T]) string {

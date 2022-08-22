@@ -97,11 +97,29 @@ func TestUserMapperImpl_SelectById(t *testing.T) {
 func TestUserMapperImpl_Save(t *testing.T) {
 	mgr := gobatis.NewSessionManager(connect())
 	userMapper := BaseMapper[TestTable]{SessMgr: mgr}
-	table := TestTable{Username: "zouchangfu9999", Password: "123456"}
-	save, err := userMapper.Save(table)
+	table := TestTable{Username: "zouchangfu0123", Password: "123456"}
+	ret, id, err := userMapper.Save(table)
 	if err != nil {
 		fmt.Println(err.Error())
 	}
-	fmt.Println(save)
+	fmt.Println(ret, id)
+
+}
+
+func TestUserMapperImpl_SaveBatch(t *testing.T) {
+	mgr := gobatis.NewSessionManager(connect())
+	userMapper := BaseMapper[TestTable]{SessMgr: mgr}
+	var entities []TestTable
+	table1 := TestTable{Username: "zouchangfu1", Password: "123456"}
+	table2 := TestTable{Username: "zouchangfu2", Password: "123456"}
+	table3 := TestTable{Username: "zouchangfu3", Password: "123456"}
+	entities = append(entities, table1)
+	entities = append(entities, table2)
+	entities = append(entities, table3)
+	ret, id, err := userMapper.SaveBatch(entities...)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	fmt.Println(ret, id)
 
 }
