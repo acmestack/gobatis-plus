@@ -47,4 +47,5 @@ const (
 	INTO      = "into"
 	ID        = "id"
 	VALUES    = "values"
+	SET       = "set"
 )

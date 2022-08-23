@@ -121,5 +121,39 @@ func TestUserMapperImpl_SaveBatch(t *testing.T) {
 		fmt.Println(err.Error())
 	}
 	fmt.Println(ret, id)
+}
 
+func TestUserMapperImpl_Delete(t *testing.T) {
+	mgr := gobatis.NewSessionManager(connect())
+	userMapper := BaseMapper[TestTable]{SessMgr: mgr}
+	ret, err := userMapper.DeleteById(126)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	fmt.Println(ret)
+}
+
+func TestUserMapperImpl_DeleteBatch(t *testing.T) {
+	mgr := gobatis.NewSessionManager(connect())
+	userMapper := BaseMapper[TestTable]{SessMgr: mgr}
+	var ids []any
+	ids = append(ids, 123)
+	ids = append(ids, 124)
+	ids = append(ids, 125)
+	ret, err := userMapper.DeleteBatchIds(ids)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	fmt.Println(ret)
+}
+
+func TestUserMapperImpl_UpdateById(t *testing.T) {
+	mgr := gobatis.NewSessionManager(connect())
+	userMapper := BaseMapper[TestTable]{SessMgr: mgr}
+	var entity = TestTable{Id: 1, Username: "zouchangfu", Password: "123456"}
+	ret, err := userMapper.UpdateById(entity)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	fmt.Println(ret)
 }

@@ -107,14 +107,170 @@ func (userMapper *BaseMapper[T]) SaveBatch(entities ...T) (int64, int64, error) 
 	return ret, insertId, nil
 }
 
-func (userMapper *BaseMapper[T]) DeleteById(id any) int64 {
-	return 0
+func (userMapper *BaseMapper[T]) DeleteById(id any) (int64, error) {
+	tableName := userMapper.getTableName()
+	builder := strings.Builder{}
+	builder.WriteString(constants.DELETE + constants.SPACE + constants.FROM + constants.SPACE + tableName + constants.SPACE +
+		constants.WHERE + constants.SPACE + constants.ID + constants.Eq)
+	var paramMap = map[string]any{}
+	// 构建idSql
+	// eg： #{mapping1}
+	idSqlBuilder := userMapper.buildIdSql(id, paramMap)
+
+	sql := builder.String() + idSqlBuilder.String()
+	fmt.Println(sql)
+
+	sqlId := buildSqlId(constants.DELETE)
+
+	err := gobatis.RegisterSql(sqlId, sql)
+	if err != nil {
+		return 0, err
+	}
+
+	sess := userMapper.SessMgr.NewSession()
+	var ret int64
+	err = sess.Delete(sqlId).Param(paramMap).Result(&ret)
+	if err != nil {
+		return 0, err
+	}
+
+	// delete sqlId
+	gobatis.UnregisterSql(sqlId)
+	return ret, nil
 }
-func (userMapper *BaseMapper[T]) DeleteBatchIds(ids []any) int64 {
-	return 0
+
+func (userMapper *BaseMapper[T]) buildIdSql(id any, paramMap map[string]any) strings.Builder {
+	builder := strings.Builder{}
+	builder.WriteString(constants.HASH_LEFT_BRACE)
+	switch v := id.(type) {
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+		idStr := fmt.Sprintf("%d", v)
+		mapping := userMapper.getMappingSeq()
+		builder.WriteString(mapping)
+		paramMap[mapping] = idStr
+	case string:
+		mapping := userMapper.getMappingSeq()
+		builder.WriteString(mapping)
+		paramMap[mapping] = v
+	}
+	builder.WriteString(constants.RIGHT_BRACE)
+	return builder
 }
-func (userMapper *BaseMapper[T]) UpdateById(entity T) int64 {
-	return 0
+
+func (userMapper *BaseMapper[T]) DeleteBatchIds(ids []any) (int64, error) {
+	tableName := userMapper.getTableName()
+	builder := strings.Builder{}
+	builder.WriteString(constants.DELETE + constants.SPACE + constants.FROM + constants.SPACE + tableName + constants.SPACE +
+		constants.WHERE + constants.SPACE + constants.ID + constants.SPACE + constants.In + constants.SPACE + constants.LEFT_BRACKET)
+	var paramMap = map[string]any{}
+	// 构建idSql
+	// eg： #{mapping1},#{mapping1},#{mapping1}
+	for i, id := range ids {
+		idSqlBuilder := userMapper.buildIdSql(id, paramMap)
+		if i != len(ids)-1 {
+			builder.WriteString(idSqlBuilder.String())
+			builder.WriteString(",")
+		} else {
+			builder.WriteString(idSqlBuilder.String())
+		}
+	}
+	builder.WriteString(constants.RIGHT_BRACKET)
+
+	fmt.Println(builder.String())
+
+	sqlId := buildSqlId(constants.DELETE)
+
+	err := gobatis.RegisterSql(sqlId, builder.String())
+	if err != nil {
+		return 0, err
+	}
+
+	sess := userMapper.SessMgr.NewSession()
+	var ret int64
+	err = sess.Delete(sqlId).Param(paramMap).Result(&ret)
+	if err != nil {
+		return 0, err
+	}
+
+	// delete sqlId
+	gobatis.UnregisterSql(sqlId)
+	return ret, nil
+}
+func (userMapper *BaseMapper[T]) UpdateById(entity T) (int64, error) {
+	tableName := userMapper.getTableName()
+	sess := userMapper.SessMgr.NewSession()
+	builder := strings.Builder{}
+	builder.WriteString(constants.UPDATE + constants.SPACE + tableName + constants.SPACE + constants.SET + constants.SPACE)
+	entityType := reflect.TypeOf(entity)
+	entityValue := reflect.ValueOf(entity)
+	numField := entityType.NumField()
+	paramMap := map[string]any{}
+
+	// 拼接需要更新的值
+	// 字段名 = #{mapping}，字段名 = #{mapping}，字段名 = #{mapping}
+	var idValue any
+	for i := 0; i < numField; i++ {
+		tag := entityType.Field(i).Tag
+		column := tag.Get(constants.COLUMN)
+		// 如果是等于Id的话也需要跳过
+		if column == "" || constants.ID == column {
+			idValue = entityValue.Field(i).Interface()
+			continue
+		}
+		builder.WriteString(column + constants.Eq + constants.HASH_LEFT_BRACE)
+		fieldValue := entityValue.Field(i).Interface()
+		switch v := fieldValue.(type) {
+		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+			idStr := fmt.Sprintf("%d", v)
+			mapping := userMapper.getMappingSeq()
+			builder.WriteString(mapping)
+			paramMap[mapping] = idStr
+		case string:
+			mapping := userMapper.getMappingSeq()
+			builder.WriteString(mapping)
+			paramMap[mapping] = v
+		}
+		builder.WriteString(constants.RIGHT_BRACE)
+		if i != numField-1 {
+			builder.WriteString(constants.COMMA)
+		}
+	}
+
+	// 拼接后半部分sql
+	// eg： where id = #{mapping}
+	switch v := idValue.(type) {
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+		idStr := fmt.Sprintf("%d", v)
+		mapping := userMapper.getMappingSeq()
+
+		builder.WriteString(constants.SPACE + constants.WHERE + constants.SPACE + constants.ID + constants.Eq + constants.HASH_LEFT_BRACE)
+		builder.WriteString(mapping)
+		builder.WriteString(constants.RIGHT_BRACE)
+		paramMap[mapping] = idStr
+	case string:
+		mapping := userMapper.getMappingSeq()
+		builder.WriteString(constants.WHERE + constants.SPACE + constants.ID + constants.Eq + constants.HASH_LEFT_BRACE)
+		builder.WriteString(mapping)
+		builder.WriteString(constants.RIGHT_BRACE)
+		paramMap[mapping] = v
+	}
+
+	// 构建sqlId
+	sqlId := buildSqlId(constants.UPDATE)
+
+	fmt.Println(builder.String())
+	// 注册sql
+	err := gobatis.RegisterSql(sqlId, builder.String())
+	if err != nil {
+		return 0, err
+	}
+	var ret int64
+	selectRunner := sess.Update(sqlId).Param(paramMap)
+	err = selectRunner.Result(&ret)
+	if err != nil {
+		return 0, err
+	}
+	return ret, nil
 }
 func (userMapper *BaseMapper[T]) SelectById(id any) (T, error) {
 	queryWrapper := userMapper.init(nil)
