@@ -1,16 +1,32 @@
+/*
+ * Licensed to the AcmeStack under one or more contributor license
+ * agreements. See the NOTICE file distributed with this work for
+ * additional information regarding copyright ownership.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package mapper
 
 import (
 	"github.com/acmestack/gobatis-plus/pkg/constants"
-	"github.com/xfali/gobatis/builder"
-	"reflect"
+	"github.com/acmestack/gobatis/builder"
 )
 
 type QueryWrapper[T any] struct {
-	Columns   []string
-	Entity    *T
-	SqlBuild  *builder.SQLFragment
-	TableName string
+	Columns           []string
+	SqlBuild          *builder.SQLFragment
+	Expression        []any
+	LastConditionType string
 }
 
 func (queryWrapper *QueryWrapper[T]) Eq(column string, val any) Wrapper[T] {
@@ -68,82 +84,35 @@ func (queryWrapper *QueryWrapper[T]) LikeRight(column string, val any) Wrapper[T
 }
 
 func (queryWrapper *QueryWrapper[T]) And() Wrapper[T] {
-	queryWrapper.SqlBuild = queryWrapper.SqlBuild.And()
+	queryWrapper.Expression = append(queryWrapper.Expression, constants.Eq)
+	queryWrapper.LastConditionType = constants.Eq
 	return queryWrapper
 }
 
 func (queryWrapper *QueryWrapper[T]) Or() Wrapper[T] {
-	queryWrapper.SqlBuild = queryWrapper.SqlBuild.Or()
+	queryWrapper.Expression = append(queryWrapper.Expression, constants.Or)
+	queryWrapper.LastConditionType = constants.Or
 	return queryWrapper
 }
 
 func (queryWrapper *QueryWrapper[T]) Select(columns ...string) Wrapper[T] {
-	queryWrapper.SqlBuild.Select(columns...)
+	queryWrapper.Columns = append(queryWrapper.Columns, columns...)
 	return queryWrapper
 }
 
-func (queryWrapper *QueryWrapper[T]) init() {
-	if queryWrapper.Entity == nil {
-		queryWrapper.Entity = new(T)
-	}
-	if queryWrapper.TableName == "" {
-		queryWrapper.setTableName()
-	}
+type ParamValue struct {
+	value any
 }
 
 func (queryWrapper *QueryWrapper[T]) setCondition(column string, val any, conditionType string) {
-	queryWrapper.init()
-	entityValueRef := reflect.ValueOf(queryWrapper.Entity).Elem()
-	entityRef := reflect.TypeOf(queryWrapper.Entity).Elem()
-	numField := entityRef.NumField()
-	for i := 0; i < numField; i++ {
-		field := entityRef.Field(i)
-		filedName := field.Tag.Get("xfield")
-		if filedName == column {
-			setField(entityValueRef, field, val)
-		}
+
+	if queryWrapper.LastConditionType != constants.And && queryWrapper.LastConditionType != constants.Or && len(queryWrapper.Expression) > 0 {
+		queryWrapper.Expression = append(queryWrapper.Expression, constants.And)
 	}
-	key := getConditionKey(column, entityRef.Name(), conditionType)
-	queryWrapper.SqlBuild = queryWrapper.SqlBuild.Where(key)
-}
 
-func getConditionKey(column string, name string, conditionType string) string {
-	key := column + conditionType + "#{" + name + "." + column + "}"
-	return key
-}
+	queryWrapper.Expression = append(queryWrapper.Expression, column)
 
-func setField(entityValueRef reflect.Value, field reflect.StructField, val any) {
-	ft := field.Type
-	switch ft.Kind() {
-	case reflect.String:
-		entityValueRef.FieldByName(field.Name).SetString(val.(string))
-	case reflect.Int:
-		i := val.(int)
-		entityValueRef.FieldByName(field.Name).SetInt(int64(i))
-	}
-}
+	queryWrapper.Expression = append(queryWrapper.Expression, conditionType)
 
-func (queryWrapper *QueryWrapper[T]) setTableName() {
-	// todo The future is through annotations get the tableName
-	entityRef := reflect.TypeOf(queryWrapper.Entity).Elem()
-	tableName := entityRef.Field(0).Tag
-	queryWrapper.TableName = string(tableName)
-
-	queryWrapper.checkColumns()
-
-	queryWrapper.SqlBuild = builder.Select(queryWrapper.Columns...).From(string(tableName))
-}
-
-func (queryWrapper *QueryWrapper[T]) checkColumns() {
-	if len(queryWrapper.Columns) == 0 {
-		entityRef := reflect.TypeOf(queryWrapper.Entity).Elem()
-		numField := entityRef.NumField()
-		for i := 0; i < numField; i++ {
-			field := entityRef.Field(i)
-			filedName := field.Tag.Get("xfield")
-			if filedName != "" {
-				queryWrapper.Columns = append(queryWrapper.Columns, filedName)
-			}
-		}
-	}
+	queryWrapper.Expression = append(queryWrapper.Expression, ParamValue{val})
 }

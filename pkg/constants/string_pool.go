@@ -15,27 +15,17 @@
  * limitations under the License.
  */
 
-package plugin
+package constants
 
-import "k8s.io/gengo/types"
-
-var (
-	gPlugins = []Plugin{
-		&mapperPlugin{},
-		&dataPlugin{},
-	}
+const (
+	RIGHT_BRACE     = "}"
+	HASH_LEFT_BRACE = "#{"
+	MAPPING         = "mapping"
+	SPACE           = " "
+	ASTERISK        = "*"
+	CONNECTION      = "-"
+	COUNT           = "count(*)"
+	LEFT_BRACKET    = "("
+	RIGHT_BRACKET   = ")"
+	COMMA           = ","
 )
-
-func FindPlugin(t *types.Type) Plugin {
-	for i := len(gPlugins) - 1; i >= 0; i-- {
-		v := gPlugins[i]
-		if v.CouldHandle(t) {
-			return v
-		}
-	}
-	return nil
-}
-
-func RegisterPlugin(plugin Plugin) {
-	gPlugins = append(gPlugins, plugin)
-}

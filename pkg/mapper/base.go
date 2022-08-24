@@ -1,7 +1,7 @@
 /*
- * Copyright (c) 2022, AcmeStack
- * All rights reserved.
- *
+ * Licensed to the AcmeStack under one or more contributor license
+ * agreements. See the NOTICE file distributed with this work for
+ * additional information regarding copyright ownership.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -18,23 +18,23 @@
 package mapper
 
 type Base[T any] interface {
-	Insert(entity T) int64
+	Save(entity T) int64
 
-	InsertBatch(entities ...T) (int64, int64)
+	SaveBatch(entities ...T) (int64, int64)
+
+	UpdateById(entity T) int64
+
+	SelectById(id any) (T, error)
+
+	SelectBatchIds(queryWrapper *QueryWrapper[T]) ([]T, error)
+
+	SelectOne(queryWrapper *QueryWrapper[T]) (T, error)
+
+	SelectCount(queryWrapper *QueryWrapper[T]) (int64, error)
+
+	SelectList(queryWrapper *QueryWrapper[T]) ([]T, error)
 
 	DeleteById(id any) int64
 
 	DeleteBatchIds(ids []any) int64
-
-	UpdateById(entity T) int64
-
-	SelectById(id any) T
-
-	SelectBatchIds(ids []any) []T
-
-	SelectOne(entity T) T
-
-	SelectCount(entity T) int64
-
-	SelectList(queryWrapper QueryWrapper[T]) ([]T, error)
 }
