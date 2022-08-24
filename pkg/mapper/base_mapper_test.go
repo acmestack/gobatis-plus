@@ -1,31 +1,13 @@
-/*
- * Licensed to the AcmeStack under one or more contributor license
- * agreements. See the NOTICE file distributed with this work for
- * additional information regarding copyright ownership.
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package mapper
 
 import (
 	"encoding/json"
 	"fmt"
-	"testing"
-
 	"github.com/acmestack/gobatis"
 	"github.com/acmestack/gobatis/datasource"
 	"github.com/acmestack/gobatis/factory"
 	_ "github.com/go-sql-driver/mysql"
+	"testing"
 )
 
 func connect() factory.Factory {
@@ -110,4 +92,68 @@ func TestUserMapperImpl_SelectById(t *testing.T) {
 	}
 	marshal, _ := json.Marshal(entity)
 	fmt.Println(string(marshal))
+}
+
+func TestUserMapperImpl_Save(t *testing.T) {
+	mgr := gobatis.NewSessionManager(connect())
+	userMapper := BaseMapper[TestTable]{SessMgr: mgr}
+	table := TestTable{Username: "zouchangfu0123", Password: "123456"}
+	ret, id, err := userMapper.Save(table)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	fmt.Println(ret, id)
+
+}
+
+func TestUserMapperImpl_SaveBatch(t *testing.T) {
+	mgr := gobatis.NewSessionManager(connect())
+	userMapper := BaseMapper[TestTable]{SessMgr: mgr}
+	var entities []TestTable
+	table1 := TestTable{Username: "zouchangfu1", Password: "123456"}
+	table2 := TestTable{Username: "zouchangfu2", Password: "123456"}
+	table3 := TestTable{Username: "zouchangfu3", Password: "123456"}
+	entities = append(entities, table1)
+	entities = append(entities, table2)
+	entities = append(entities, table3)
+	ret, id, err := userMapper.SaveBatch(entities...)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	fmt.Println(ret, id)
+}
+
+func TestUserMapperImpl_Delete(t *testing.T) {
+	mgr := gobatis.NewSessionManager(connect())
+	userMapper := BaseMapper[TestTable]{SessMgr: mgr}
+	ret, err := userMapper.DeleteById(126)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	fmt.Println(ret)
+}
+
+func TestUserMapperImpl_DeleteBatch(t *testing.T) {
+	mgr := gobatis.NewSessionManager(connect())
+	userMapper := BaseMapper[TestTable]{SessMgr: mgr}
+	var ids []any
+	ids = append(ids, 123)
+	ids = append(ids, 124)
+	ids = append(ids, 125)
+	ret, err := userMapper.DeleteBatchIds(ids)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	fmt.Println(ret)
+}
+
+func TestUserMapperImpl_UpdateById(t *testing.T) {
+	mgr := gobatis.NewSessionManager(connect())
+	userMapper := BaseMapper[TestTable]{SessMgr: mgr}
+	var entity = TestTable{Id: 1, Username: "zouchangfu", Password: "123456"}
+	ret, err := userMapper.UpdateById(entity)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	fmt.Println(ret)
 }
