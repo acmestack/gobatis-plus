@@ -35,7 +35,7 @@ func TestUserMapperImpl_SelectList(t *testing.T) {
 	mgr := gobatis.NewSessionManager(connect())
 	userMapper := BaseMapper[TestTable]{SessMgr: mgr}
 	queryWrapper := &QueryWrapper[TestTable]{}
-	queryWrapper.Eq("username", "user123").Select("username")
+	queryWrapper.In("id", 1, 2, 3)
 	list, err := userMapper.SelectList(queryWrapper)
 	if err != nil {
 		fmt.Println(err.Error())
@@ -48,7 +48,7 @@ func TestUserMapperImpl_SelectOne(t *testing.T) {
 	mgr := gobatis.NewSessionManager(connect())
 	userMapper := BaseMapper[TestTable]{SessMgr: mgr}
 	queryWrapper := &QueryWrapper[TestTable]{}
-	queryWrapper.Eq("username", "user1").Select("username", "password")
+	queryWrapper.Eq("username", "zouchangfu").Select("username", "password")
 	entity, err := userMapper.SelectOne(queryWrapper)
 	if err != nil {
 		fmt.Println(err.Error())
@@ -69,6 +69,17 @@ func TestUserMapperImpl_SelectCount(t *testing.T) {
 	fmt.Println(count)
 }
 
+func TestUserMapperImpl_SelectById(t *testing.T) {
+	mgr := gobatis.NewSessionManager(connect())
+	userMapper := BaseMapper[TestTable]{SessMgr: mgr}
+	entity, err := userMapper.SelectById(103)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	marshal, _ := json.Marshal(entity)
+	fmt.Println(string(marshal))
+}
+
 func TestUserMapperImpl_SelectBatchIds(t *testing.T) {
 	mgr := gobatis.NewSessionManager(connect())
 	userMapper := BaseMapper[TestTable]{SessMgr: mgr}
@@ -80,17 +91,6 @@ func TestUserMapperImpl_SelectBatchIds(t *testing.T) {
 		fmt.Println(err.Error())
 	}
 	marshal, _ := json.Marshal(list)
-	fmt.Println(string(marshal))
-}
-
-func TestUserMapperImpl_SelectById(t *testing.T) {
-	mgr := gobatis.NewSessionManager(connect())
-	userMapper := BaseMapper[TestTable]{SessMgr: mgr}
-	entity, err := userMapper.SelectById(103)
-	if err != nil {
-		fmt.Println(err.Error())
-	}
-	marshal, _ := json.Marshal(entity)
 	fmt.Println(string(marshal))
 }
 
@@ -126,7 +126,7 @@ func TestUserMapperImpl_SaveBatch(t *testing.T) {
 func TestUserMapperImpl_Delete(t *testing.T) {
 	mgr := gobatis.NewSessionManager(connect())
 	userMapper := BaseMapper[TestTable]{SessMgr: mgr}
-	ret, err := userMapper.DeleteById(126)
+	ret, err := userMapper.DeleteById(130)
 	if err != nil {
 		fmt.Println(err.Error())
 	}

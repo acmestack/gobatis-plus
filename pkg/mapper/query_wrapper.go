@@ -25,72 +25,77 @@ import (
 type QueryWrapper[T any] struct {
 	Columns           []string
 	SqlBuild          *builder.SQLFragment
-	Expression        []any
+	Conditions        []any
 	LastConditionType string
 }
 
 func (queryWrapper *QueryWrapper[T]) Eq(column string, val any) Wrapper[T] {
-	queryWrapper.setCondition(column, val, constants.Eq)
+	queryWrapper.addCondition(column, val, constants.Eq)
 	return queryWrapper
 }
 
 func (queryWrapper *QueryWrapper[T]) Ne(column string, val any) Wrapper[T] {
-	queryWrapper.setCondition(column, val, constants.Ne)
+	queryWrapper.addCondition(column, val, constants.Ne)
 	return queryWrapper
 }
 
 func (queryWrapper *QueryWrapper[T]) Gt(column string, val any) Wrapper[T] {
-	queryWrapper.setCondition(column, val, constants.Gt)
+	queryWrapper.addCondition(column, val, constants.Gt)
 	return queryWrapper
 }
 
 func (queryWrapper *QueryWrapper[T]) Ge(column string, val any) Wrapper[T] {
-	queryWrapper.setCondition(column, val, constants.Ge)
+	queryWrapper.addCondition(column, val, constants.Ge)
 	return queryWrapper
 }
 
 func (queryWrapper *QueryWrapper[T]) Lt(column string, val any) Wrapper[T] {
-	queryWrapper.setCondition(column, val, constants.Lt)
+	queryWrapper.addCondition(column, val, constants.Lt)
 	return queryWrapper
 }
 
 func (queryWrapper *QueryWrapper[T]) Le(column string, val any) Wrapper[T] {
-	queryWrapper.setCondition(column, val, constants.Le)
+	queryWrapper.addCondition(column, val, constants.Le)
 	return queryWrapper
 }
 
 func (queryWrapper *QueryWrapper[T]) Like(column string, val any) Wrapper[T] {
 	s := val.(string)
-	queryWrapper.setCondition(column, "%"+s+"%", constants.Like)
+	queryWrapper.addCondition(column, "%"+s+"%", constants.Like)
 	return queryWrapper
 }
 
 func (queryWrapper *QueryWrapper[T]) NotLike(column string, val any) Wrapper[T] {
 	s := val.(string)
-	queryWrapper.setCondition(column, "%"+s+"%", constants.Not+constants.Like)
+	queryWrapper.addCondition(column, "%"+s+"%", constants.Not+constants.Like)
 	return queryWrapper
 }
 
 func (queryWrapper *QueryWrapper[T]) LikeLeft(column string, val any) Wrapper[T] {
 	s := val.(string)
-	queryWrapper.setCondition(column, "%"+s, constants.Like)
+	queryWrapper.addCondition(column, "%"+s, constants.Like)
 	return queryWrapper
 }
 
 func (queryWrapper *QueryWrapper[T]) LikeRight(column string, val any) Wrapper[T] {
 	s := val.(string)
-	queryWrapper.setCondition(column, s+"%", constants.Like)
+	queryWrapper.addCondition(column, s+"%", constants.Like)
+	return queryWrapper
+}
+
+func (queryWrapper *QueryWrapper[T]) In(column string, val ...any) Wrapper[T] {
+	queryWrapper.addCondition(column, val, constants.In)
 	return queryWrapper
 }
 
 func (queryWrapper *QueryWrapper[T]) And() Wrapper[T] {
-	queryWrapper.Expression = append(queryWrapper.Expression, constants.Eq)
+	queryWrapper.Conditions = append(queryWrapper.Conditions, constants.Eq)
 	queryWrapper.LastConditionType = constants.Eq
 	return queryWrapper
 }
 
 func (queryWrapper *QueryWrapper[T]) Or() Wrapper[T] {
-	queryWrapper.Expression = append(queryWrapper.Expression, constants.Or)
+	queryWrapper.Conditions = append(queryWrapper.Conditions, constants.Or)
 	queryWrapper.LastConditionType = constants.Or
 	return queryWrapper
 }
@@ -104,15 +109,15 @@ type ParamValue struct {
 	value any
 }
 
-func (queryWrapper *QueryWrapper[T]) setCondition(column string, val any, conditionType string) {
+func (queryWrapper *QueryWrapper[T]) addCondition(column string, val any, conditionType string) {
 
-	if queryWrapper.LastConditionType != constants.And && queryWrapper.LastConditionType != constants.Or && len(queryWrapper.Expression) > 0 {
-		queryWrapper.Expression = append(queryWrapper.Expression, constants.And)
+	if queryWrapper.LastConditionType != constants.And && queryWrapper.LastConditionType != constants.Or && len(queryWrapper.Conditions) > 0 {
+		queryWrapper.Conditions = append(queryWrapper.Conditions, constants.And)
 	}
 
-	queryWrapper.Expression = append(queryWrapper.Expression, column)
+	queryWrapper.Conditions = append(queryWrapper.Conditions, column)
 
-	queryWrapper.Expression = append(queryWrapper.Expression, conditionType)
+	queryWrapper.Conditions = append(queryWrapper.Conditions, conditionType)
 
-	queryWrapper.Expression = append(queryWrapper.Expression, ParamValue{val})
+	queryWrapper.Conditions = append(queryWrapper.Conditions, ParamValue{val})
 }

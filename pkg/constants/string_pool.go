@@ -24,9 +24,13 @@ const (
 	SPACE           = " "
 	ASTERISK        = "*"
 	CONNECTION      = "-"
-	COUNT           = "count(*)"
+	COUNT           = "COUNT(*)"
 	LEFT_BRACKET    = "("
 	RIGHT_BRACKET   = ")"
 	COMMA           = ","
 	COLUMN          = "column"
+
+	COLUMN_HASH     = "#{columns}"
+	TABLE_NAME_HASH = "#{tableName}"
+	CONDITIONS_HASH = "#{conditions}"
 )
