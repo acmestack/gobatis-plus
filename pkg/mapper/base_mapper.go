@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"github.com/acmestack/gobatis"
 	"github.com/acmestack/gobatis-plus/pkg/constants"
+	"github.com/acmestack/godkits/gox/stringsx"
 	"reflect"
 	"strconv"
 	"strings"
@@ -37,19 +38,148 @@ type BaseMapper[T any] struct {
 
 type BuildSqlFunc func(columns string, tableName string) string
 
+func (userMapper *BaseMapper[T]) SelectList(queryWrapper *QueryWrapper[T]) ([]T, error) {
+	// 初始化queryWrapper，如果queryWrapper是空的，需要初始化一个新的
+	queryWrapper = userMapper.init(queryWrapper)
+
+	// 构建Select查询语句
+	paramMap, sql, sqlId := userMapper.buildSelectSql(queryWrapper, "")
+
+	err := gobatis.RegisterSql(sqlId, sql)
+	defer gobatis.UnregisterSql(sqlId)
+	if err != nil {
+		return nil, err
+	}
+
+	// 创建会话查询数据
+	sess := userMapper.SessMgr.NewSession()
+	var results []T
+	err = sess.Select(sqlId).Param(paramMap).Result(&results)
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func (userMapper *BaseMapper[T]) SelectById(id any) (T, error) {
+	queryWrapper := userMapper.init(nil)
+	switch v := id.(type) {
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+		queryWrapper.Eq(constants.ID, fmt.Sprintf("%d", v))
+	case string:
+		queryWrapper.Eq(constants.ID, v)
+	}
+
+	// 构建Select查询语句
+	paramMap, sql, sqlId := userMapper.buildSelectSql(queryWrapper, "")
+
+	// 注册sql
+
+	err := gobatis.RegisterSql(sqlId, sql)
+	defer gobatis.UnregisterSql(sqlId)
+	var entity T
+	if err != nil {
+		return entity, err
+	}
+
+	// 创建会话查询数据
+	sess := userMapper.SessMgr.NewSession()
+	err = sess.Select(sqlId).Param(paramMap).Result(&entity)
+	if err != nil {
+		return entity, err
+	}
+	return entity, nil
+}
+
+func (userMapper *BaseMapper[T]) SelectBatchIds(ids []any) ([]T, error) {
+	queryWrapper := userMapper.init(nil)
+	queryWrapper.In(constants.ID, ids...)
+
+	// 构建Select查询语句
+	paramMap, sql, sqlId := userMapper.buildSelectSql(queryWrapper, "")
+
+	err := gobatis.RegisterSql(sqlId, sql)
+	defer gobatis.UnregisterSql(sqlId)
+	if err != nil {
+		return nil, err
+	}
+
+	// 创建会话查询数据
+	sess := userMapper.SessMgr.NewSession()
+	var arr []T
+	err = sess.Select(sqlId).Param(paramMap).Result(&arr)
+	if err != nil {
+		return nil, err
+	}
+
+	return arr, nil
+}
+
+func (userMapper *BaseMapper[T]) SelectOne(queryWrapper *QueryWrapper[T]) (T, error) {
+	// 初始化queryWrapper，如果queryWrapper是空的，需要初始化一个新的
+	queryWrapper = userMapper.init(queryWrapper)
+
+	// 构建Select查询语句
+	paramMap, sql, sqlId := userMapper.buildSelectSql(queryWrapper, "")
+
+	err := gobatis.RegisterSql(sqlId, sql)
+	defer gobatis.UnregisterSql(sqlId)
+	var entity T
+	if err != nil {
+		return entity, err
+	}
+
+	// 创建会话查询数据
+	sess := userMapper.SessMgr.NewSession()
+	err = sess.Select(sqlId).Param(paramMap).Result(&entity)
+	if err != nil {
+		return entity, err
+	}
+
+	return entity, nil
+}
+
+func (userMapper *BaseMapper[T]) SelectCount(queryWrapper *QueryWrapper[T]) (int64, error) {
+	// 初始化queryWrapper，如果queryWrapper是空的，需要初始化一个新的
+	queryWrapper = userMapper.init(queryWrapper)
+
+	// 构建Select查询语句
+	paramMap, sql, sqlId := userMapper.buildSelectSql(queryWrapper, constants.COUNT)
+
+	err := gobatis.RegisterSql(sqlId, sql)
+	defer gobatis.UnregisterSql(sqlId)
+	if err != nil {
+		return 0, err
+	}
+
+	// 创建会话查询数据
+	sess := userMapper.SessMgr.NewSession()
+	var count int64
+	err = sess.Select(sqlId).Param(paramMap).Result(&count)
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
 func (userMapper *BaseMapper[T]) Save(entity T) (int, int64, error) {
 	sess := userMapper.SessMgr.NewSession()
-	// 构建insert语句前部分
-	// eg：insert field1,field2 into tableName values
-	firstPartBuilder := userMapper.buildInsertFirstPart()
+
+	// 获取表名
+	tableName := userMapper.getTableName()
+
+	// 获取插入字段
+	// eg：columnName1,columnName2,columnName3
+	columns := userMapper.buildInsertColumns()
 
 	// 构建插入语句后半部分
 	// eg：(#{mapping1},#{mapping2},#{mapping3})
-	var paramMap = map[string]any{}
-	endPartBuilder := userMapper.buildInsertEndPart(entity, paramMap)
+
+	endPartBuilder := userMapper.buildInsertColumnValue(entity, paramMap)
 
 	// 构建插件语句
-	insertSql := firstPartBuilder.String() + endPartBuilder.String()
+	insertSql := columns.String() + endPartBuilder.String()
 	fmt.Println(insertSql)
 
 	// 构建sqlId
@@ -74,13 +204,13 @@ func (userMapper *BaseMapper[T]) SaveBatch(entities ...T) (int64, int64, error) 
 	sess := userMapper.SessMgr.NewSession()
 	// 构建insert语句前部分
 	// eg：insert field1,field2 into tableName values
-	builder := userMapper.buildInsertFirstPart()
+	builder := userMapper.buildInsertColumns()
 
 	var paramMap = map[string]any{}
 	for i, entity := range entities {
 		// 构建插入语句后半部分
 		// eg：(#{mapping1},#{mapping2},#{mapping3})
-		endPartBuilder := userMapper.buildInsertEndPart(entity, paramMap)
+		endPartBuilder := userMapper.buildInsertColumnValue(entity, paramMap)
 		if i != len(entities)-1 {
 			builder.WriteString(endPartBuilder.String() + constants.COMMA)
 		} else {
@@ -139,24 +269,6 @@ func (userMapper *BaseMapper[T]) DeleteById(id any) (int64, error) {
 	return ret, nil
 }
 
-func (userMapper *BaseMapper[T]) buildIdSql(id any, paramMap map[string]any) strings.Builder {
-	builder := strings.Builder{}
-	builder.WriteString(constants.HASH_LEFT_BRACE)
-	switch v := id.(type) {
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
-		idStr := fmt.Sprintf("%d", v)
-		mapping := userMapper.getMappingSeq()
-		builder.WriteString(mapping)
-		paramMap[mapping] = idStr
-	case string:
-		mapping := userMapper.getMappingSeq()
-		builder.WriteString(mapping)
-		paramMap[mapping] = v
-	}
-	builder.WriteString(constants.RIGHT_BRACE)
-	return builder
-}
-
 func (userMapper *BaseMapper[T]) DeleteBatchIds(ids []any) (int64, error) {
 	tableName := userMapper.getTableName()
 	builder := strings.Builder{}
@@ -196,6 +308,7 @@ func (userMapper *BaseMapper[T]) DeleteBatchIds(ids []any) (int64, error) {
 	gobatis.UnregisterSql(sqlId)
 	return ret, nil
 }
+
 func (userMapper *BaseMapper[T]) UpdateById(entity T) (int64, error) {
 	tableName := userMapper.getTableName()
 	sess := userMapper.SessMgr.NewSession()
@@ -272,100 +385,31 @@ func (userMapper *BaseMapper[T]) UpdateById(entity T) (int64, error) {
 	}
 	return ret, nil
 }
-func (userMapper *BaseMapper[T]) SelectById(id any) (T, error) {
-	queryWrapper := userMapper.init(nil)
+
+func (userMapper *BaseMapper[T]) buildIdSql(id any, paramMap map[string]any) strings.Builder {
+	builder := strings.Builder{}
+	builder.WriteString(constants.HASH_LEFT_BRACE)
 	switch v := id.(type) {
 	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
-		queryWrapper.Eq(constants.ID, fmt.Sprintf("%d", v))
-	case string:
-		queryWrapper.Eq(constants.ID, v)
-	}
-	// 构建需要查询的字段，如果查询条件没有传入的话，默认查询所有
-	// eg: columnName1,columnName2,columnName3
-	columns := userMapper.buildSelectColumns(queryWrapper)
-
-	// 获取表名称
-	tableName := userMapper.getTableName()
-
-	// 构建查询条件
-	// eg: columnName1 = #{mapping1} and columnName2 = #{mapping1}
-	sqlCondition, paramMap := userMapper.buildCondition(queryWrapper)
-
-	// 构建sql
-	// eg: SELECT * FROM WHERE columnName = #{mapping1} and columnName = #{mapping1}
-	sql := userMapper.buildSql(columns, tableName, sqlCondition)
-
-	// 构建sqlId
-	sqlId := buildSqlId(constants.SELECT)
-
-	// 注册sql
-	var entity T
-	err := gobatis.RegisterSql(sqlId, sql)
-	if err != nil {
-		return entity, err
-	}
-
-	// 创建会话查询数据
-	sess := userMapper.SessMgr.NewSession()
-	err = sess.Select(sqlId).Param(paramMap).Result(&entity)
-	if err != nil {
-		return entity, err
-	}
-
-	// 卸载sqlId
-	gobatis.UnregisterSql(sqlId)
-	return entity, nil
-}
-func (userMapper *BaseMapper[T]) SelectBatchIds(ids []any) ([]T, error) {
-	tableName := userMapper.getTableName()
-	// 构建第一部分sql
-	sqlFirstPart := buildSelectSqlFirstPart(constants.ASTERISK, tableName)
-	var paramMap = map[string]any{}
-	build := strings.Builder{}
-	// 拼接sql
-	build.WriteString(constants.SPACE + constants.WHERE + constants.SPACE + constants.ID +
-		constants.SPACE + constants.In + constants.LEFT_BRACKET + constants.SPACE)
-
-	for index, id := range ids {
+		idStr := fmt.Sprintf("%d", v)
 		mapping := userMapper.getMappingSeq()
-		paramMap[mapping] = strconv.Itoa(id.(int))
-		if index == len(ids)-1 {
-			build.WriteString(constants.HASH_LEFT_BRACE + mapping + constants.RIGHT_BRACE)
-		} else {
-			build.WriteString(constants.HASH_LEFT_BRACE + mapping + constants.RIGHT_BRACE + constants.COMMA)
-		}
+		builder.WriteString(mapping)
+		paramMap[mapping] = idStr
+	case string:
+		mapping := userMapper.getMappingSeq()
+		builder.WriteString(mapping)
+		paramMap[mapping] = v
 	}
-	build.WriteString(constants.SPACE + constants.RIGHT_BRACKET)
-	sqlId := buildSqlId(constants.SELECT)
-	sql := sqlFirstPart + build.String()
-
-	err := gobatis.RegisterSql(sqlId, sql)
-	if err != nil {
-		return nil, err
-	}
-
-	sess := userMapper.SessMgr.NewSession()
-	var arr []T
-	err = sess.Select(sqlId).Param(paramMap).Result(&arr)
-	if err != nil {
-		return nil, err
-	}
-	return arr, nil
+	builder.WriteString(constants.RIGHT_BRACE)
+	return builder
 }
 
-func (userMapper *BaseMapper[T]) getMappingSeq() string {
-	userMapper.ParamNameSeq = userMapper.ParamNameSeq + 1
-	mapping := constants.MAPPING + strconv.Itoa(userMapper.ParamNameSeq)
-	return mapping
-}
-
-func (userMapper *BaseMapper[T]) SelectOne(queryWrapper *QueryWrapper[T]) (T, error) {
-	// 初始化queryWrapper，如果queryWrapper是空的，需要初始化一个新的
-	queryWrapper = userMapper.init(queryWrapper)
-
+func (userMapper *BaseMapper[T]) buildSelectSql(queryWrapper *QueryWrapper[T], columns string) (map[string]any, string, string) {
 	// 构建需要查询的字段，如果查询条件没有传入的话，默认查询所有
-	// eg: columnName1,columnName2,columnName3
-	columns := userMapper.buildSelectColumns(queryWrapper)
+	if stringsx.Empty(columns) {
+		// eg: columnName1,columnName2,columnName3
+		columns = userMapper.buildSelectColumns(queryWrapper)
+	}
 
 	// 获取表名称
 	tableName := userMapper.getTableName()
@@ -380,102 +424,7 @@ func (userMapper *BaseMapper[T]) SelectOne(queryWrapper *QueryWrapper[T]) (T, er
 
 	// 构建sqlId
 	sqlId := buildSqlId(constants.SELECT)
-
-	// 注册sql
-	var entity T
-	err := gobatis.RegisterSql(sqlId, sql)
-	if err != nil {
-		return entity, err
-	}
-
-	// 创建会话查询数据
-	sess := userMapper.SessMgr.NewSession()
-	err = sess.Select(sqlId).Param(paramMap).Result(&entity)
-	if err != nil {
-		return entity, err
-	}
-
-	// 卸载sqlId
-	gobatis.UnregisterSql(sqlId)
-	return entity, nil
-}
-
-func (userMapper *BaseMapper[T]) SelectCount(queryWrapper *QueryWrapper[T]) (int64, error) {
-	// 初始化queryWrapper，如果queryWrapper是空的，需要初始化一个新的
-	queryWrapper = userMapper.init(queryWrapper)
-
-	// 获取表名称
-	tableName := userMapper.getTableName()
-
-	// 构建查询条件
-	// eg: columnName1 = #{mapping1} and columnName2 = #{mapping1}
-	sqlCondition, paramMap := userMapper.buildCondition(queryWrapper)
-
-	// 构建sql
-	// eg: SELECT COUNT(*) FROM WHERE columnName = #{mapping1} and columnName = #{mapping1}
-	sql := userMapper.buildSql(constants.COUNT, tableName, sqlCondition)
-
-	// 构建sqlId
-	sqlId := buildSqlId(constants.SELECT)
-
-	// 注册sql
-	err := gobatis.RegisterSql(sqlId, sql)
-	if err != nil {
-		return 0, err
-	}
-
-	// 创建会话查询数据
-	sess := userMapper.SessMgr.NewSession()
-	var count int64
-	err = sess.Select(sqlId).Param(paramMap).Result(&count)
-	if err != nil {
-		return 0, err
-	}
-
-	// 卸载sql
-	gobatis.UnregisterSql(sqlId)
-	return count, nil
-}
-
-func (userMapper *BaseMapper[T]) SelectList(queryWrapper *QueryWrapper[T]) ([]T, error) {
-	// 初始化queryWrapper，如果queryWrapper是空的，需要初始化一个新的
-	queryWrapper = userMapper.init(queryWrapper)
-
-	// 构建需要查询的字段，如果查询条件没有传入的话，默认查询所有
-	// eg: columnName1,columnName2,columnName3
-	columns := userMapper.buildSelectColumns(queryWrapper)
-
-	// 获取表名称
-	tableName := userMapper.getTableName()
-
-	// 构建查询条件
-	// eg: columnName1 = #{mapping1} and columnName2 = #{mapping1}
-	sqlCondition, paramMap := userMapper.buildCondition(queryWrapper)
-
-	// 构建sql
-	// eg: SELECT * FROM WHERE columnName = #{mapping1} and columnName = #{mapping1}
-	sql := userMapper.buildSql(columns, tableName, sqlCondition)
-
-	// 构建sqlId
-	sqlId := buildSqlId(constants.SELECT)
-
-	// 注册sql
-	err := gobatis.RegisterSql(sqlId, sql)
-	if err != nil {
-		return nil, err
-	}
-
-	// 创建会话查询数据
-	sess := userMapper.SessMgr.NewSession()
-	var results []T
-	err = sess.Select(sqlId).Param(paramMap).Result(&results)
-	if err != nil {
-		return nil, err
-	}
-
-	// 卸载sql
-	gobatis.UnregisterSql(sqlId)
-	return results, nil
+	return paramMap, sql, sqlId
 }
 
 func (userMapper *BaseMapper[T]) buildSql(columns string, tableName string, sqlCondition string) string {
@@ -488,9 +437,8 @@ func (userMapper *BaseMapper[T]) buildSql(columns string, tableName string, sqlC
 	return sql
 }
 
-func (userMapper *BaseMapper[T]) buildInsertEndPart(entity T, paramMap map[string]any) strings.Builder {
-	builder := strings.Builder{}
-	builder.WriteString(constants.LEFT_BRACKET)
+func (userMapper *BaseMapper[T]) buildInsertColumnValue(entity T) (map[string]any, string) {
+	var paramMap = map[string]any{}
 	entityType := reflect.TypeOf(entity)
 	entityValue := reflect.ValueOf(entity)
 	entityValueNum := entityValue.NumField()
@@ -518,28 +466,19 @@ func (userMapper *BaseMapper[T]) buildInsertEndPart(entity T, paramMap map[strin
 	return builder
 }
 
-func (userMapper *BaseMapper[T]) buildInsertFirstPart() *strings.Builder {
-	builder := strings.Builder{}
-	tableName := userMapper.getTableName()
-	builder.WriteString(constants.INSERT + constants.SPACE + constants.INTO + constants.SPACE + tableName + constants.SPACE + constants.LEFT_BRACKET)
+func (userMapper *BaseMapper[T]) buildInsertColumns() string {
 	entityType := reflect.TypeOf(new(T)).Elem()
 	entityTypeNum := entityType.NumField()
+	var columns []string
 	for i := 0; i < entityTypeNum; i++ {
 		tag := entityType.Field(i).Tag
 		column := tag.Get(constants.COLUMN)
-		if column == "" {
+		if stringsx.Empty(column) {
 			continue
 		}
-		if i != entityTypeNum-1 {
-			// 如果不是最后一个字段，需要在字段后面拼接逗号
-			builder.WriteString(column + constants.COMMA)
-		} else {
-			// 如果是最后一个字段，需要在字段后面拼接右括号
-			builder.WriteString(column + constants.RIGHT_BRACKET)
-		}
+		columns = append(columns, column)
 	}
-	builder.WriteString(constants.SPACE + constants.VALUES + constants.SPACE)
-	return &builder
+	return strings.Join(columns, ",")
 }
 
 func (userMapper *BaseMapper[T]) buildSelectColumns(queryWrapper *QueryWrapper[T]) string {
@@ -606,34 +545,6 @@ func (userMapper *BaseMapper[T]) buildCondition(queryWrapper *QueryWrapper[T]) (
 	return build.String(), paramMap
 }
 
-func (userMapper *BaseMapper[T]) buildSelectSql(queryWrapper *QueryWrapper[T], columns string, buildSqlFunc BuildSqlFunc) (string, string, map[string]any) {
-
-	// 构建查询条件
-	//sqlCondition, paramMap := userMapper.buildCondition(queryWrapper)
-	//
-	//sqlId := buildSqlId(constants.SELECT)
-
-	/*	// 获取表名称
-		tableName := userMapper.getTableName()
-
-		// 构建sql语句
-
-
-		// 执行函数构建sql的第一部分
-		sqlFirstPart := buildSqlFunc(columns, tableName)
-
-		var sql string
-		if len(queryWrapper.Conditions) > 0 {
-			// 拼接sql语句
-			sql = sqlFirstPart + constants.SPACE + constants.WHERE + constants.SPACE + sqlCondition
-		} else {
-			// 如果没有条件，查询所有数据
-			sql = sqlFirstPart
-		}*/
-
-	return "", "", nil
-}
-
 func (userMapper *BaseMapper[T]) getTableName() string {
 	entityRef := reflect.TypeOf(new(T)).Elem()
 	tableNameTag := entityRef.Field(0).Tag
@@ -647,6 +558,8 @@ func buildSqlId(sqlType string) string {
 	return sqlId
 }
 
-func buildSelectSqlFirstPart(columns string, tableName string) string {
-	return constants.SELECT + constants.SPACE + columns + constants.SPACE + constants.FROM + constants.SPACE + tableName
+func (userMapper *BaseMapper[T]) getMappingSeq() string {
+	userMapper.ParamNameSeq = userMapper.ParamNameSeq + 1
+	mapping := constants.MAPPING + strconv.Itoa(userMapper.ParamNameSeq)
+	return mapping
 }
