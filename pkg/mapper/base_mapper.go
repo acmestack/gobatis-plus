@@ -28,8 +28,6 @@ type BaseMapper[T any] struct {
 	SessMgr *gobatis.SessionManager
 }
 
-type BuildSqlFunc func(columns string, tableName string) string
-
 func (userMapper *BaseMapper[T]) SelectList(queryWrapper *QueryWrapper[T]) ([]T, error) {
 	// 初始化queryWrapper，如果queryWrapper是空的，需要初始化一个新的
 	queryWrapper = userMapper.initQueryWrapper(queryWrapper)
