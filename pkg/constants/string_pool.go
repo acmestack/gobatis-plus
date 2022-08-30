@@ -30,7 +30,8 @@ const (
 	COMMA           = ","
 	COLUMN          = "column"
 
-	COLUMN_HASH     = "#{columns}"
-	TABLE_NAME_HASH = "#{tableName}"
-	CONDITIONS_HASH = "#{conditions}"
+	COLUMN_HASH         = "#{columns}"
+	TABLE_NAME_HASH     = "#{tableName}"
+	CONDITIONS_HASH     = "#{conditions}"
+	COLUMN_MAPPING_HASH = "#{columnMapping}"
 )

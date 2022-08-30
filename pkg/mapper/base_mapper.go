@@ -164,8 +164,6 @@ func (userMapper *BaseMapper[T]) SelectCount(queryWrapper *QueryWrapper[T]) (int
 }
 
 func (userMapper *BaseMapper[T]) Save(entity T) (int, int64, error) {
-	sess := userMapper.SessMgr.NewSession()
-
 	// 获取表名
 	tableName := userMapper.getTableName()
 
@@ -175,21 +173,21 @@ func (userMapper *BaseMapper[T]) Save(entity T) (int, int64, error) {
 
 	// 构建插入语句后半部分
 	// eg：(#{mapping1},#{mapping2},#{mapping3})
+	paramMap, columnMappings := userMapper.buildInsertColumnMapping(entity)
 
-	endPartBuilder := userMapper.buildInsertColumnValue(entity, paramMap)
-
-	// 构建插件语句
-	insertSql := columns.String() + endPartBuilder.String()
-	fmt.Println(insertSql)
+	// 构建sql
+	sql := userMapper.onBuildInsertSql(tableName, columns, columnMappings)
 
 	// 构建sqlId
-	sqlId := buildSqlId(constants.INTO)
+	sqlId := buildSqlId(constants.INSERT)
 
-	// 注册sql
-	err := gobatis.RegisterSql(sqlId, insertSql)
+	err := gobatis.RegisterSql(sqlId, sql)
+	defer gobatis.UnregisterSql(sqlId)
 	if err != nil {
 		return 0, 0, err
 	}
+
+	sess := userMapper.SessMgr.NewSession()
 	var ret int
 	selectRunner := sess.Insert(sqlId).Param(paramMap)
 	err = selectRunner.Result(&ret)
@@ -200,33 +198,48 @@ func (userMapper *BaseMapper[T]) Save(entity T) (int, int64, error) {
 	return ret, insertId, nil
 }
 
-func (userMapper *BaseMapper[T]) SaveBatch(entities ...T) (int64, int64, error) {
-	sess := userMapper.SessMgr.NewSession()
-	// 构建insert语句前部分
-	// eg：insert field1,field2 into tableName values
-	builder := userMapper.buildInsertColumns()
+func (userMapper *BaseMapper[T]) onBuildInsertSql(tableName string, columns string, columnMappings []string) string {
+	sql := strings.Replace(constants.INSERT_SQL, constants.TABLE_NAME_HASH, tableName, -1)
+	sql = strings.Replace(sql, constants.COLUMN_HASH, columns, -1)
+	sql = strings.Replace(sql, constants.COLUMN_MAPPING_HASH, columnMappings[0], -1)
 
-	var paramMap = map[string]any{}
-	for i, entity := range entities {
-		// 构建插入语句后半部分
-		// eg：(#{mapping1},#{mapping2},#{mapping3})
-		endPartBuilder := userMapper.buildInsertColumnValue(entity, paramMap)
-		if i != len(entities)-1 {
-			builder.WriteString(endPartBuilder.String() + constants.COMMA)
-		} else {
-			builder.WriteString(endPartBuilder.String())
+	builder := stringsx.Builder{}
+	builder.JoinString(sql)
+	for i, columnMapping := range columnMappings {
+		// 跳过第一次，因为上面已经使用了
+		if i == 0 {
+			continue
 		}
+		builder.JoinString(constants.COMMA + constants.LEFT_BRACKET + columnMapping + constants.RIGHT_BRACKET)
 	}
-	fmt.Println(builder.String())
+	return builder.String()
+}
+
+func (userMapper *BaseMapper[T]) SaveBatch(entities ...T) (int64, int64, error) {
+	// 获取表名
+	tableName := userMapper.getTableName()
+
+	// 获取插入字段
+	// eg：columnName1,columnName2,columnName3
+	columns := userMapper.buildInsertColumns()
+
+	// 构建插入语句后半部分
+	// eg：(#{mapping1},#{mapping2},#{mapping3})
+	paramMap, columnMappings := userMapper.buildInsertColumnMapping(entities...)
+
+	// 构建sql
+	sql := userMapper.onBuildInsertSql(tableName, columns, columnMappings)
 
 	// 构建sqlId
-	sqlId := buildSqlId(constants.INTO)
+	sqlId := buildSqlId(constants.INSERT)
 
 	// 注册sql
-	err := gobatis.RegisterSql(sqlId, builder.String())
+	err := gobatis.RegisterSql(sqlId, sql)
 	if err != nil {
 		return 0, 0, err
 	}
+
+	sess := userMapper.SessMgr.NewSession()
 	var ret int64
 	selectRunner := sess.Insert(sqlId).Param(paramMap)
 	err = selectRunner.Result(&ret)
@@ -420,14 +433,14 @@ func (userMapper *BaseMapper[T]) buildSelectSql(queryWrapper *QueryWrapper[T], c
 
 	// 构建sql
 	// eg: SELECT * FROM WHERE columnName = #{mapping1} and columnName = #{mapping1}
-	sql := userMapper.buildSql(columns, tableName, sqlCondition)
+	sql := userMapper.onBuildSelectSql(columns, tableName, sqlCondition)
 
 	// 构建sqlId
 	sqlId := buildSqlId(constants.SELECT)
 	return paramMap, sql, sqlId
 }
 
-func (userMapper *BaseMapper[T]) buildSql(columns string, tableName string, sqlCondition string) string {
+func (userMapper *BaseMapper[T]) onBuildSelectSql(columns string, tableName string, sqlCondition string) string {
 	sql := strings.Replace(constants.SELECT_SQL, constants.COLUMN_HASH, columns, -1)
 	sql = strings.Replace(sql, constants.TABLE_NAME_HASH, tableName, -1)
 	sql = strings.Replace(sql, constants.CONDITIONS_HASH, sqlCondition, -1)
@@ -437,33 +450,36 @@ func (userMapper *BaseMapper[T]) buildSql(columns string, tableName string, sqlC
 	return sql
 }
 
-func (userMapper *BaseMapper[T]) buildInsertColumnValue(entity T) (map[string]any, string) {
+func (userMapper *BaseMapper[T]) buildInsertColumnMapping(entities ...T) (map[string]any, []string) {
 	var paramMap = map[string]any{}
-	entityType := reflect.TypeOf(entity)
-	entityValue := reflect.ValueOf(entity)
-	entityValueNum := entityValue.NumField()
-	for i := 0; i < entityValueNum; i++ {
-		tag := entityType.Field(i).Tag
-		column := tag.Get(constants.COLUMN)
-		if column == "" {
-			continue
+	var allColumnMappings []string
+	for _, entity := range entities {
+		entityType := reflect.TypeOf(entity)
+		entityValue := reflect.ValueOf(entity)
+		entityValueNum := entityValue.NumField()
+		var columnMappings []string
+		for i := 0; i < entityValueNum; i++ {
+			tag := entityType.Field(i).Tag
+			column := tag.Get(constants.COLUMN)
+			if column == "" {
+				continue
+			}
+			// 构建columnMapping值
+			v := entityValue.Field(i)
+			mapping := userMapper.getMappingSeq()
+			switch iv := v.Interface().(type) {
+			case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+				paramMap[mapping] = fmt.Sprintf("%d", iv)
+			case string:
+				paramMap[mapping] = iv
+			}
+			mapping = constants.HASH_LEFT_BRACE + mapping + constants.RIGHT_BRACE
+			columnMappings = append(columnMappings, mapping)
 		}
-		// 构建values值
-		v := entityValue.Field(i).Interface()
-		mapping := userMapper.getMappingSeq()
-		switch value := v.(type) {
-		case string:
-			paramMap[mapping] = value
-		case int64:
-			paramMap[mapping] = value
-		}
-		if i != entityValueNum-1 {
-			builder.WriteString(constants.HASH_LEFT_BRACE + mapping + constants.RIGHT_BRACE + constants.COMMA)
-		} else {
-			builder.WriteString(constants.HASH_LEFT_BRACE + mapping + constants.RIGHT_BRACE + constants.RIGHT_BRACKET)
-		}
+		allColumnMappings = append(allColumnMappings, strings.Join(columnMappings, ","))
 	}
-	return builder
+
+	return paramMap, allColumnMappings
 }
 
 func (userMapper *BaseMapper[T]) buildInsertColumns() string {

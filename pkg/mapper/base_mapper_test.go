@@ -97,7 +97,7 @@ func TestUserMapperImpl_SelectBatchIds(t *testing.T) {
 func TestUserMapperImpl_Save(t *testing.T) {
 	mgr := gobatis.NewSessionManager(connect())
 	userMapper := BaseMapper[TestTable]{SessMgr: mgr}
-	table := TestTable{Username: "zouchangfu0123", Password: "123456"}
+	table := TestTable{Username: "hello", Password: "123456"}
 	ret, id, err := userMapper.Save(table)
 	if err != nil {
 		fmt.Println(err.Error())
