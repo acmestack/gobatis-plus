@@ -19,12 +19,10 @@ package mapper
 
 import (
 	"github.com/acmestack/gobatis-plus/pkg/constants"
-	"github.com/acmestack/gobatis/builder"
 )
 
 type QueryWrapper[T any] struct {
 	Columns           []string
-	SqlBuild          *builder.SQLFragment
 	Conditions        []any
 	LastConditionType string
 }
