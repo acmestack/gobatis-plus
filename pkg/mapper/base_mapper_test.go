@@ -35,7 +35,7 @@ func TestUserMapperImpl_SelectList(t *testing.T) {
 	mgr := gobatis.NewSessionManager(connect())
 	userMapper := BaseMapper[TestTable]{SessMgr: mgr}
 	queryWrapper := &QueryWrapper[TestTable]{}
-	queryWrapper.In("id", 1, 2, 3)
+	queryWrapper.Eq("username", "acmestack").In("password", "123456", "pw5")
 	list, err := userMapper.SelectList(queryWrapper)
 	if err != nil {
 		fmt.Println(err.Error())
