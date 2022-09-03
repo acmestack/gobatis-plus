@@ -18,42 +18,152 @@
 package mapper
 
 import (
-	"context"
 	"fmt"
 	"github.com/acmestack/gobatis"
 	"github.com/acmestack/gobatis-plus/pkg/constants"
 	"reflect"
-	"strconv"
-	"strings"
-	"time"
 )
 
 type BaseMapper[T any] struct {
-	SessMgr      *gobatis.SessionManager
-	Ctx          context.Context
-	Columns      []string
-	ParamNameSeq int
+	SessMgr *gobatis.SessionManager
 }
 
-type BuildSqlFunc func(columns string, tableName string) string
+func (userMapper *BaseMapper[T]) SelectList(queryWrapper *QueryWrapper[T]) ([]T, error) {
+	// 初始化queryWrapper，如果queryWrapper是空的，需要初始化一个新的
+	queryWrapper = userMapper.initQueryWrapper(queryWrapper)
+
+	builder := SqlBuilder[T]{}
+	paramMap, sql, sqlId := builder.BuildSelectSql(queryWrapper, "")
+
+	err := gobatis.RegisterSql(sqlId, sql)
+	defer gobatis.UnregisterSql(sqlId)
+	if err != nil {
+		return nil, err
+	}
+
+	// 创建会话查询数据
+	sess := userMapper.SessMgr.NewSession()
+	var results []T
+	err = sess.Select(sqlId).Param(paramMap).Result(&results)
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func (userMapper *BaseMapper[T]) SelectById(id any) (T, error) {
+	queryWrapper := userMapper.initQueryWrapper(nil)
+	switch v := id.(type) {
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
+		queryWrapper.Eq(constants.ID, fmt.Sprintf("%d", v))
+	case string:
+		queryWrapper.Eq(constants.ID, v)
+	}
+
+	builder := SqlBuilder[T]{}
+	paramMap, sql, sqlId := builder.BuildSelectSql(queryWrapper, "")
+
+	// 注册sql
+
+	err := gobatis.RegisterSql(sqlId, sql)
+	defer gobatis.UnregisterSql(sqlId)
+	var entity T
+	if err != nil {
+		return entity, err
+	}
+
+	// 创建会话查询数据
+	sess := userMapper.SessMgr.NewSession()
+	err = sess.Select(sqlId).Param(paramMap).Result(&entity)
+	if err != nil {
+		return entity, err
+	}
+	return entity, nil
+}
+
+func (userMapper *BaseMapper[T]) SelectBatchIds(ids []any) ([]T, error) {
+	queryWrapper := userMapper.initQueryWrapper(nil)
+	queryWrapper.In(constants.ID, ids...)
+
+	builder := SqlBuilder[T]{}
+	paramMap, sql, sqlId := builder.BuildSelectSql(queryWrapper, "")
+
+	err := gobatis.RegisterSql(sqlId, sql)
+	defer gobatis.UnregisterSql(sqlId)
+	if err != nil {
+		return nil, err
+	}
+
+	// 创建会话查询数据
+	sess := userMapper.SessMgr.NewSession()
+	var arr []T
+	err = sess.Select(sqlId).Param(paramMap).Result(&arr)
+	if err != nil {
+		return nil, err
+	}
+
+	return arr, nil
+}
+
+func (userMapper *BaseMapper[T]) SelectOne(queryWrapper *QueryWrapper[T]) (T, error) {
+	// 初始化queryWrapper，如果queryWrapper是空的，需要初始化一个新的
+	queryWrapper = userMapper.initQueryWrapper(queryWrapper)
+
+	builder := SqlBuilder[T]{}
+	paramMap, sql, sqlId := builder.BuildSelectSql(queryWrapper, "")
+
+	err := gobatis.RegisterSql(sqlId, sql)
+	defer gobatis.UnregisterSql(sqlId)
+	var entity T
+	if err != nil {
+		return entity, err
+	}
+
+	// 创建会话查询数据
+	sess := userMapper.SessMgr.NewSession()
+	err = sess.Select(sqlId).Param(paramMap).Result(&entity)
+	if err != nil {
+		return entity, err
+	}
+
+	return entity, nil
+}
+
+func (userMapper *BaseMapper[T]) SelectCount(queryWrapper *QueryWrapper[T]) (int64, error) {
+	// 初始化queryWrapper，如果queryWrapper是空的，需要初始化一个新的
+	queryWrapper = userMapper.initQueryWrapper(queryWrapper)
+
+	builder := SqlBuilder[T]{}
+	paramMap, sql, sqlId := builder.BuildSelectSql(queryWrapper, constants.COUNT)
+
+	err := gobatis.RegisterSql(sqlId, sql)
+	defer gobatis.UnregisterSql(sqlId)
+	if err != nil {
+		return 0, err
+	}
+
+	// 创建会话查询数据
+	sess := userMapper.SessMgr.NewSession()
+	var count int64
+	err = sess.Select(sqlId).Param(paramMap).Result(&count)
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
 
 func (userMapper *BaseMapper[T]) Save(entity T) (int, int64, error) {
-	sess := userMapper.SessMgr.NewSession()
+	builder := SqlBuilder[T]{}
+	paramMap, sql, sqlId := builder.BuildInsertSql(entity)
 
-	firstPartBuilder := userMapper.buildInsertFirstPart()
-
-	var paramMap = map[string]any{}
-	endPartBuilder := userMapper.buildInsertEndPart(entity, paramMap)
-
-	insertSql := firstPartBuilder.String() + endPartBuilder.String()
-	fmt.Println(insertSql)
-
-	sqlId := buildSqlId(constants.INTO)
-
-	err := gobatis.RegisterSql(sqlId, insertSql)
+	err := gobatis.RegisterSql(sqlId, sql)
+	defer gobatis.UnregisterSql(sqlId)
 	if err != nil {
 		return 0, 0, err
 	}
+
+	sess := userMapper.SessMgr.NewSession()
 	var ret int
 	selectRunner := sess.Insert(sqlId).Param(paramMap)
 	err = selectRunner.Result(&ret)
@@ -65,30 +175,16 @@ func (userMapper *BaseMapper[T]) Save(entity T) (int, int64, error) {
 }
 
 func (userMapper *BaseMapper[T]) SaveBatch(entities ...T) (int64, int64, error) {
-	sess := userMapper.SessMgr.NewSession()
+	builder := SqlBuilder[T]{}
+	paramMap, sql, sqlId := builder.BuildInsertSql(entities...)
 
-	// eg：insert field1,field2 into tableName values
-	builder := userMapper.buildInsertFirstPart()
-
-	var paramMap = map[string]any{}
-	for i, entity := range entities {
-
-		// eg：(#{mapping1},#{mapping2},#{mapping3})
-		endPartBuilder := userMapper.buildInsertEndPart(entity, paramMap)
-		if i != len(entities)-1 {
-			builder.WriteString(endPartBuilder.String() + constants.COMMA)
-		} else {
-			builder.WriteString(endPartBuilder.String())
-		}
-	}
-	fmt.Println(builder.String())
-
-	sqlId := buildSqlId(constants.INTO)
-
-	err := gobatis.RegisterSql(sqlId, builder.String())
+	// 注册sql
+	err := gobatis.RegisterSql(sqlId, sql)
 	if err != nil {
 		return 0, 0, err
 	}
+
+	sess := userMapper.SessMgr.NewSession()
 	var ret int64
 	selectRunner := sess.Insert(sqlId).Param(paramMap)
 	err = selectRunner.Result(&ret)
@@ -100,21 +196,16 @@ func (userMapper *BaseMapper[T]) SaveBatch(entities ...T) (int64, int64, error) 
 }
 
 func (userMapper *BaseMapper[T]) DeleteById(id any) (int64, error) {
-	tableName := userMapper.getTableName()
-	builder := strings.Builder{}
-	builder.WriteString(constants.DELETE + constants.SPACE + constants.FROM + constants.SPACE + tableName + constants.SPACE +
-		constants.WHERE + constants.SPACE + constants.ID + constants.Eq)
-	var paramMap = map[string]any{}
+	var conditions []any
+	conditions = append(conditions, constants.ID)
+	conditions = append(conditions, constants.Eq)
+	conditions = append(conditions, ParamValue{id})
 
-	// eg： #{mapping1}
-	idSqlBuilder := userMapper.buildIdSql(id, paramMap)
-
-	sql := builder.String() + idSqlBuilder.String()
-	fmt.Println(sql)
-
-	sqlId := buildSqlId(constants.DELETE)
+	builder := SqlBuilder[T]{}
+	paramMap, sql, sqlId := builder.BuildDeleteSql(conditions)
 
 	err := gobatis.RegisterSql(sqlId, sql)
+	defer gobatis.UnregisterSql(sqlId)
 	if err != nil {
 		return 0, err
 	}
@@ -129,50 +220,19 @@ func (userMapper *BaseMapper[T]) DeleteById(id any) (int64, error) {
 	// delete sqlId
 	gobatis.UnregisterSql(sqlId)
 	return ret, nil
-}
-
-func (userMapper *BaseMapper[T]) buildIdSql(id any, paramMap map[string]any) strings.Builder {
-	builder := strings.Builder{}
-	builder.WriteString(constants.HASH_LEFT_BRACE)
-	switch v := id.(type) {
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
-		idStr := fmt.Sprintf("%d", v)
-		mapping := userMapper.getMappingSeq()
-		builder.WriteString(mapping)
-		paramMap[mapping] = idStr
-	case string:
-		mapping := userMapper.getMappingSeq()
-		builder.WriteString(mapping)
-		paramMap[mapping] = v
-	}
-	builder.WriteString(constants.RIGHT_BRACE)
-	return builder
 }
 
 func (userMapper *BaseMapper[T]) DeleteBatchIds(ids []any) (int64, error) {
-	tableName := userMapper.getTableName()
-	builder := strings.Builder{}
-	builder.WriteString(constants.DELETE + constants.SPACE + constants.FROM + constants.SPACE + tableName + constants.SPACE +
-		constants.WHERE + constants.SPACE + constants.ID + constants.SPACE + constants.In + constants.SPACE + constants.LEFT_BRACKET)
-	var paramMap = map[string]any{}
+	var conditions []any
+	conditions = append(conditions, constants.ID)
+	conditions = append(conditions, constants.In)
+	conditions = append(conditions, ParamValue{ids})
 
-	// eg： #{mapping1},#{mapping1},#{mapping1}
-	for i, id := range ids {
-		idSqlBuilder := userMapper.buildIdSql(id, paramMap)
-		if i != len(ids)-1 {
-			builder.WriteString(idSqlBuilder.String())
-			builder.WriteString(",")
-		} else {
-			builder.WriteString(idSqlBuilder.String())
-		}
-	}
-	builder.WriteString(constants.RIGHT_BRACKET)
+	builder := SqlBuilder[T]{}
+	paramMap, sql, sqlId := builder.BuildDeleteSql(conditions)
 
-	fmt.Println(builder.String())
-
-	sqlId := buildSqlId(constants.DELETE)
-
-	err := gobatis.RegisterSql(sqlId, builder.String())
+	err := gobatis.RegisterSql(sqlId, sql)
+	defer gobatis.UnregisterSql(sql)
 	if err != nil {
 		return 0, err
 	}
@@ -188,70 +248,24 @@ func (userMapper *BaseMapper[T]) DeleteBatchIds(ids []any) (int64, error) {
 	gobatis.UnregisterSql(sqlId)
 	return ret, nil
 }
+
 func (userMapper *BaseMapper[T]) UpdateById(entity T) (int64, error) {
-	tableName := userMapper.getTableName()
+	updateWrapper := userMapper.initUpdateWrapper(nil)
+	value := userMapper.getIdValue(entity)
+	updateWrapper.Eq(constants.ID, value)
+
+	builder := SqlBuilder[T]{}
+	paramMap, sql, sqlId := builder.BuildUpdateSql(entity, updateWrapper)
+
 	sess := userMapper.SessMgr.NewSession()
-	builder := strings.Builder{}
-	builder.WriteString(constants.UPDATE + constants.SPACE + tableName + constants.SPACE + constants.SET + constants.SPACE)
-	entityType := reflect.TypeOf(entity)
-	entityValue := reflect.ValueOf(entity)
-	numField := entityType.NumField()
-	paramMap := map[string]any{}
 
-	// field = #{mapping}，field = #{mapping}，field = #{mapping}
-	var idValue any
-	for i := 0; i < numField; i++ {
-		tag := entityType.Field(i).Tag
-		column := tag.Get(constants.COLUMN)
-		if column == "" || constants.ID == column {
-			idValue = entityValue.Field(i).Interface()
-			continue
-		}
-		builder.WriteString(column + constants.Eq + constants.HASH_LEFT_BRACE)
-		fieldValue := entityValue.Field(i).Interface()
-		switch v := fieldValue.(type) {
-		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
-			idStr := fmt.Sprintf("%d", v)
-			mapping := userMapper.getMappingSeq()
-			builder.WriteString(mapping)
-			paramMap[mapping] = idStr
-		case string:
-			mapping := userMapper.getMappingSeq()
-			builder.WriteString(mapping)
-			paramMap[mapping] = v
-		}
-		builder.WriteString(constants.RIGHT_BRACE)
-		if i != numField-1 {
-			builder.WriteString(constants.COMMA)
-		}
-	}
-
-	// eg： where id = #{mapping}
-	switch v := idValue.(type) {
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
-		idStr := fmt.Sprintf("%d", v)
-		mapping := userMapper.getMappingSeq()
-
-		builder.WriteString(constants.SPACE + constants.WHERE + constants.SPACE + constants.ID + constants.Eq + constants.HASH_LEFT_BRACE)
-		builder.WriteString(mapping)
-		builder.WriteString(constants.RIGHT_BRACE)
-		paramMap[mapping] = idStr
-	case string:
-		mapping := userMapper.getMappingSeq()
-		builder.WriteString(constants.WHERE + constants.SPACE + constants.ID + constants.Eq + constants.HASH_LEFT_BRACE)
-		builder.WriteString(mapping)
-		builder.WriteString(constants.RIGHT_BRACE)
-		paramMap[mapping] = v
-	}
-
-	sqlId := buildSqlId(constants.UPDATE)
-
-	fmt.Println(builder.String())
-
-	err := gobatis.RegisterSql(sqlId, builder.String())
+	// 注册sql
+	err := gobatis.RegisterSql(sqlId, sql)
+	defer gobatis.UnregisterSql(sqlId)
 	if err != nil {
 		return 0, err
 	}
+
 	var ret int64
 	selectRunner := sess.Update(sqlId).Param(paramMap)
 	err = selectRunner.Result(&ret)
@@ -260,263 +274,31 @@ func (userMapper *BaseMapper[T]) UpdateById(entity T) (int64, error) {
 	}
 	return ret, nil
 }
-func (userMapper *BaseMapper[T]) SelectById(id any) (T, error) {
-	queryWrapper := userMapper.init(nil)
-	queryWrapper.Eq(constants.ID, strconv.Itoa(id.(int)))
-	columns := userMapper.buildSelectColumns(queryWrapper)
 
-	sqlId, sql, paramMap := userMapper.buildSelectSql(queryWrapper, columns, buildSelectSqlFirstPart)
-
-	var entity T
-	err := gobatis.RegisterSql(sqlId, sql)
-	if err != nil {
-		return entity, err
-	}
-
-	sess := userMapper.SessMgr.NewSession()
-
-	err = sess.Select(sqlId).Param(paramMap).Result(&entity)
-	if err != nil {
-		return entity, err
-	}
-
-	// delete sqlId
-	gobatis.UnregisterSql(sqlId)
-
-	return entity, nil
-}
-func (userMapper *BaseMapper[T]) SelectBatchIds(ids []any) ([]T, error) {
-	tableName := userMapper.getTableName()
-
-	sqlFirstPart := buildSelectSqlFirstPart(constants.ASTERISK, tableName)
-	var paramMap = map[string]any{}
-	build := strings.Builder{}
-
-	build.WriteString(constants.SPACE + constants.WHERE + constants.SPACE + constants.ID +
-		constants.SPACE + constants.In + constants.LEFT_BRACKET + constants.SPACE)
-
-	for index, id := range ids {
-		mapping := userMapper.getMappingSeq()
-		paramMap[mapping] = strconv.Itoa(id.(int))
-		if index == len(ids)-1 {
-			build.WriteString(constants.HASH_LEFT_BRACE + mapping + constants.RIGHT_BRACE)
-		} else {
-			build.WriteString(constants.HASH_LEFT_BRACE + mapping + constants.RIGHT_BRACE + constants.COMMA)
-		}
-	}
-	build.WriteString(constants.SPACE + constants.RIGHT_BRACKET)
-	sqlId := buildSqlId(constants.SELECT)
-	sql := sqlFirstPart + build.String()
-
-	err := gobatis.RegisterSql(sqlId, sql)
-	if err != nil {
-		return nil, err
-	}
-
-	sess := userMapper.SessMgr.NewSession()
-	var arr []T
-	err = sess.Select(sqlId).Param(paramMap).Result(&arr)
-	if err != nil {
-		return nil, err
-	}
-	return arr, nil
-}
-
-func (userMapper *BaseMapper[T]) getMappingSeq() string {
-	userMapper.ParamNameSeq = userMapper.ParamNameSeq + 1
-	mapping := constants.MAPPING + strconv.Itoa(userMapper.ParamNameSeq)
-	return mapping
-}
-
-func (userMapper *BaseMapper[T]) SelectOne(queryWrapper *QueryWrapper[T]) (T, error) {
-	queryWrapper = userMapper.init(queryWrapper)
-
-	columns := userMapper.buildSelectColumns(queryWrapper)
-
-	sqlId, sql, paramMap := userMapper.buildSelectSql(queryWrapper, columns, buildSelectSqlFirstPart)
-
-	var entity T
-	err := gobatis.RegisterSql(sqlId, sql)
-	if err != nil {
-		return entity, err
-	}
-
-	sess := userMapper.SessMgr.NewSession()
-
-	err = sess.Select(sqlId).Param(paramMap).Result(&entity)
-	if err != nil {
-		return entity, err
-	}
-
-	// delete sqlId
-	gobatis.UnregisterSql(sqlId)
-	return entity, nil
-}
-
-func (userMapper *BaseMapper[T]) SelectCount(queryWrapper *QueryWrapper[T]) (int64, error) {
-	queryWrapper = userMapper.init(queryWrapper)
-
-	sqlId, sql, paramMap := userMapper.buildSelectSql(queryWrapper, constants.COUNT, buildSelectSqlFirstPart)
-
-	err := gobatis.RegisterSql(sqlId, sql)
-	if err != nil {
-		return 0, err
-	}
-
-	sess := userMapper.SessMgr.NewSession()
-	var count int64
-	err = sess.Select(sqlId).Param(paramMap).Result(&count)
-	if err != nil {
-		return 0, err
-	}
-
-	return count, nil
-}
-
-func (userMapper *BaseMapper[T]) SelectList(queryWrapper *QueryWrapper[T]) ([]T, error) {
-
-	queryWrapper = userMapper.init(queryWrapper)
-
-	columns := userMapper.buildSelectColumns(queryWrapper)
-
-	sqlId, sql, paramMap := userMapper.buildSelectSql(queryWrapper, columns, buildSelectSqlFirstPart)
-
-	err := gobatis.RegisterSql(sqlId, sql)
-	if err != nil {
-		return nil, err
-	}
-
-	sess := userMapper.SessMgr.NewSession()
-	var arr []T
-	err = sess.Select(sqlId).Param(paramMap).Result(&arr)
-	if err != nil {
-		return nil, err
-	}
-
-	// delete sqlId
-	gobatis.UnregisterSql(sqlId)
-	return arr, nil
-}
-
-func (userMapper *BaseMapper[T]) buildInsertEndPart(entity T, paramMap map[string]any) strings.Builder {
-	builder := strings.Builder{}
-	builder.WriteString(constants.LEFT_BRACKET)
-	entityType := reflect.TypeOf(entity)
-	entityValue := reflect.ValueOf(entity)
-	entityValueNum := entityValue.NumField()
-	for i := 0; i < entityValueNum; i++ {
-		tag := entityType.Field(i).Tag
-		column := tag.Get(constants.COLUMN)
-		if column == "" {
-			continue
-		}
-		v := entityValue.Field(i).Interface()
-		mapping := userMapper.getMappingSeq()
-		switch value := v.(type) {
-		case string:
-			paramMap[mapping] = value
-		case int64:
-			paramMap[mapping] = value
-		}
-		if i != entityValueNum-1 {
-			builder.WriteString(constants.HASH_LEFT_BRACE + mapping + constants.RIGHT_BRACE + constants.COMMA)
-		} else {
-			builder.WriteString(constants.HASH_LEFT_BRACE + mapping + constants.RIGHT_BRACE + constants.RIGHT_BRACKET)
-		}
-	}
-	return builder
-}
-
-func (userMapper *BaseMapper[T]) buildInsertFirstPart() *strings.Builder {
-	builder := strings.Builder{}
-	tableName := userMapper.getTableName()
-	builder.WriteString(constants.INSERT + constants.SPACE + constants.INTO + constants.SPACE + tableName + constants.SPACE + constants.LEFT_BRACKET)
-	entityType := reflect.TypeOf(new(T)).Elem()
-	entityTypeNum := entityType.NumField()
-	for i := 0; i < entityTypeNum; i++ {
-		tag := entityType.Field(i).Tag
-		column := tag.Get(constants.COLUMN)
-		if column == "" {
-			continue
-		}
-		if i != entityTypeNum-1 {
-			builder.WriteString(column + constants.COMMA)
-		} else {
-			builder.WriteString(column + constants.RIGHT_BRACKET)
-		}
-	}
-	builder.WriteString(constants.SPACE + constants.VALUES + constants.SPACE)
-	return &builder
-}
-
-func (userMapper *BaseMapper[T]) buildSelectColumns(queryWrapper *QueryWrapper[T]) string {
-	var columns string
-	if len(queryWrapper.Columns) > 0 {
-		columns = strings.Join(queryWrapper.Columns, ",")
-	} else {
-		columns = constants.ASTERISK
-	}
-	return columns
-}
-
-func (userMapper *BaseMapper[T]) init(queryWrapper *QueryWrapper[T]) *QueryWrapper[T] {
+func (userMapper *BaseMapper[T]) initQueryWrapper(queryWrapper *QueryWrapper[T]) *QueryWrapper[T] {
 	if queryWrapper == nil {
 		queryWrapper = &QueryWrapper[T]{}
 	}
 	return queryWrapper
 }
 
-func (userMapper *BaseMapper[T]) buildCondition(queryWrapper *QueryWrapper[T]) (string, map[string]any) {
-	var paramMap = map[string]any{}
-	expression := queryWrapper.Expression
-	build := strings.Builder{}
+func (userMapper *BaseMapper[T]) initUpdateWrapper(updateWrapper *UpdateWrapper[T]) *UpdateWrapper[T] {
+	if updateWrapper == nil {
+		updateWrapper = &UpdateWrapper[T]{}
+	}
+	return updateWrapper
+}
 
-	for _, v := range expression {
-		if paramValue, ok := v.(ParamValue); ok {
-			mapping := userMapper.getMappingSeq()
-			paramMap[mapping] = paramValue.value
-			build.WriteString(constants.HASH_LEFT_BRACE + mapping + constants.RIGHT_BRACE + constants.SPACE)
-		} else {
-			build.WriteString(v.(string) + constants.SPACE)
+func (userMapper *BaseMapper[T]) getIdValue(entity T) any {
+	entityType := reflect.TypeOf(entity)
+	entityValue := reflect.ValueOf(entity)
+	numField := entityType.NumField()
+	for i := 0; i < numField; i++ {
+		tag := entityType.Field(i).Tag
+		column := tag.Get(constants.COLUMN)
+		if constants.ID == column {
+			return entityValue.Field(i).Interface()
 		}
 	}
-	return build.String(), paramMap
-}
-
-func (userMapper *BaseMapper[T]) buildSelectSql(queryWrapper *QueryWrapper[T], columns string, buildSqlFunc BuildSqlFunc) (string, string, map[string]any) {
-
-	sqlCondition, paramMap := userMapper.buildCondition(queryWrapper)
-
-	tableName := userMapper.getTableName()
-
-	sqlId := buildSqlId(constants.SELECT)
-
-	sqlFirstPart := buildSqlFunc(columns, tableName)
-
-	var sql string
-	if len(queryWrapper.Expression) > 0 {
-
-		sql = sqlFirstPart + constants.SPACE + constants.WHERE + constants.SPACE + sqlCondition
-	} else {
-		sql = sqlFirstPart
-	}
-
-	return sqlId, sql, paramMap
-}
-
-func (userMapper *BaseMapper[T]) getTableName() string {
-	entityRef := reflect.TypeOf(new(T)).Elem()
-	tableNameTag := entityRef.Field(0).Tag
-	tableName := string(tableNameTag)
-	return tableName
-}
-
-// build sql id ,may need to select a better implementation
-func buildSqlId(sqlType string) string {
-	sqlId := sqlType + constants.CONNECTION + strconv.Itoa(time.Now().Nanosecond())
-	return sqlId
-}
-
-func buildSelectSqlFirstPart(columns string, tableName string) string {
-	return constants.SELECT + constants.SPACE + columns + constants.SPACE + constants.FROM + constants.SPACE + tableName
+	return nil
 }

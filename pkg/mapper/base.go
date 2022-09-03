@@ -1,7 +1,7 @@
 /*
- * Licensed to the AcmeStack under one or more contributor license
- * agreements. See the NOTICE file distributed with this work for
- * additional information regarding copyright ownership.
+ * Copyright (c) 2022, AcmeStack
+ * All rights reserved.
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -24,6 +24,10 @@ type Base[T any] interface {
 
 	UpdateById(entity T) int64
 
+	DeleteById(id any) int64
+
+	DeleteBatchIds(ids []any) int64
+
 	SelectById(id any) (T, error)
 
 	SelectBatchIds(queryWrapper *QueryWrapper[T]) ([]T, error)
@@ -33,8 +37,4 @@ type Base[T any] interface {
 	SelectCount(queryWrapper *QueryWrapper[T]) (int64, error)
 
 	SelectList(queryWrapper *QueryWrapper[T]) ([]T, error)
-
-	DeleteById(id any) int64
-
-	DeleteBatchIds(ids []any) int64
 }
