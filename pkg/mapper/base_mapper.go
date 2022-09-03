@@ -54,7 +54,7 @@ func (userMapper *BaseMapper[T]) SelectList(queryWrapper *QueryWrapper[T]) ([]T,
 func (userMapper *BaseMapper[T]) SelectById(id any) (T, error) {
 	queryWrapper := userMapper.initQueryWrapper(nil)
 	switch v := id.(type) {
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
 		queryWrapper.Eq(constants.ID, fmt.Sprintf("%d", v))
 	case string:
 		queryWrapper.Eq(constants.ID, v)

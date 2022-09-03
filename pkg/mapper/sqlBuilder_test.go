@@ -2,6 +2,7 @@ package mapper
 
 import (
 	"fmt"
+	"github.com/acmestack/gobatis-plus/pkg/constants"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -77,6 +78,87 @@ func TestSqlBuilder_BuildInsertSql(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			sqlBuilder := &SqlBuilder[TestTable]{}
 			paramMap, sql, _ := sqlBuilder.BuildInsertSql(tt.args.entity...)
+			fmt.Println(paramMap)
+			fmt.Println(sql)
+			assert.Equal(t, tt.wantParamMap, paramMap, "they should be equal")
+			assert.Equal(t, tt.wantSql, sql, "they should be equal")
+		})
+	}
+}
+
+func TestSqlBuilder_BuildUpdateSql(t *testing.T) {
+	type args struct {
+		entity        TestTable
+		updateWrapper *UpdateWrapper[TestTable]
+	}
+
+	var entity = TestTable{Id: 1, Username: "gobatis", Password: "123456"}
+	updateWrapper := &UpdateWrapper[TestTable]{}
+	updateWrapper.Eq(constants.ID, 1)
+
+	var wantParamMap = make(map[string]any)
+	wantParamMap["mapping1"] = "gobatis"
+	wantParamMap["mapping2"] = "123456"
+	wantParamMap["mapping3"] = "1"
+	tests := []struct {
+		name         string
+		args         args
+		wantParamMap map[string]any
+		wantSql      string
+		wantSqlId    string
+	}{
+		{
+			name:         "BuildUpdateSql",
+			args:         args{entity: entity, updateWrapper: updateWrapper},
+			wantParamMap: wantParamMap,
+			wantSql:      "UPDATE test_table SET username=#{mapping1},password=#{mapping2} WHERE id = #{mapping3} ",
+			wantSqlId:    "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sqlBuilder := &SqlBuilder[TestTable]{}
+			paramMap, sql, _ := sqlBuilder.BuildUpdateSql(tt.args.entity, tt.args.updateWrapper)
+			fmt.Println(paramMap)
+			fmt.Println(sql)
+			assert.Equal(t, tt.wantParamMap, paramMap, "they should be equal")
+			assert.Equal(t, tt.wantSql, sql, "they should be equal")
+		})
+	}
+}
+
+func TestSqlBuilder_BuildDeleteSql(t *testing.T) {
+	type args struct {
+		conditions []any
+	}
+
+	var conditions []any
+	conditions = append(conditions, constants.ID)
+	conditions = append(conditions, constants.Eq)
+	conditions = append(conditions, ParamValue{1})
+
+	var wantParamMap = make(map[string]any)
+	wantParamMap["mapping1"] = "1"
+
+	tests := []struct {
+		name         string
+		args         args
+		wantParamMap map[string]any
+		wantSql      string
+		wantSqlId    string
+	}{
+		{
+			name:         "BuildDeleteSql",
+			args:         args{conditions: conditions},
+			wantParamMap: wantParamMap,
+			wantSql:      "delete from test_table where id = #{mapping1} ",
+			wantSqlId:    "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sqlBuilder := &SqlBuilder[TestTable]{}
+			paramMap, sql, _ := sqlBuilder.BuildDeleteSql(tt.args.conditions)
 			fmt.Println(paramMap)
 			fmt.Println(sql)
 			assert.Equal(t, tt.wantParamMap, paramMap, "they should be equal")

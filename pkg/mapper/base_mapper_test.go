@@ -7,6 +7,8 @@ import (
 	"github.com/acmestack/gobatis/datasource"
 	"github.com/acmestack/gobatis/factory"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/stretchr/testify/assert"
+	"math/rand"
 	"testing"
 )
 
@@ -97,38 +99,68 @@ func TestUserMapperImpl_SelectBatchIds(t *testing.T) {
 func TestUserMapperImpl_Save(t *testing.T) {
 	mgr := gobatis.NewSessionManager(connect())
 	userMapper := BaseMapper[TestTable]{SessMgr: mgr}
-	table := TestTable{Username: "hello", Password: "123456"}
+	uuid := fmt.Sprintf("%d", random())
+	table := TestTable{Username: "gobatis" + uuid, Password: "123456"}
 	ret, id, err := userMapper.Save(table)
 	if err != nil {
-		fmt.Println(err.Error())
+		t.Fail()
 	}
-	fmt.Println(ret, id)
-
+	table.Id = id
+	queryWrapper := &QueryWrapper[TestTable]{}
+	queryWrapper.Eq("username", "gobatis"+uuid).Eq("password", "123456")
+	one, err := userMapper.SelectOne(queryWrapper)
+	if err != nil {
+		t.Fail()
+	}
+	fmt.Println("ret:", ret)
+	assert.Equal(t, table, one, "they should be equal")
 }
 
 func TestUserMapperImpl_SaveBatch(t *testing.T) {
 	mgr := gobatis.NewSessionManager(connect())
 	userMapper := BaseMapper[TestTable]{SessMgr: mgr}
 	var entities []TestTable
-	table1 := TestTable{Username: "zouchangfu1", Password: "123456"}
-	table2 := TestTable{Username: "zouchangfu2", Password: "123456"}
-	table3 := TestTable{Username: "zouchangfu3", Password: "123456"}
+	username1 := "gobatis" + fmt.Sprintf("%d", random())
+	username2 := "gobatis" + fmt.Sprintf("%d", random())
+	username3 := "gobatis" + fmt.Sprintf("%d", random())
+	id1 := random()
+	id2 := random()
+	id3 := random()
+	table1 := TestTable{Id: id1, Username: username1, Password: "123456"}
+	table2 := TestTable{Id: id2, Username: username2, Password: "123456"}
+	table3 := TestTable{Id: id3, Username: username3, Password: "123456"}
 	entities = append(entities, table1)
 	entities = append(entities, table2)
 	entities = append(entities, table3)
 	ret, id, err := userMapper.SaveBatch(entities...)
 	if err != nil {
-		fmt.Println(err.Error())
+		t.Fail()
 	}
 	fmt.Println(ret, id)
+	queryWrapper := &QueryWrapper[TestTable]{}
+	queryWrapper.In("username", username1, username2, username3).Eq("password", "123456")
+	list, err := userMapper.SelectList(queryWrapper)
+	fmt.Println(entities)
+	fmt.Println(list)
 }
 
 func TestUserMapperImpl_Delete(t *testing.T) {
 	mgr := gobatis.NewSessionManager(connect())
 	userMapper := BaseMapper[TestTable]{SessMgr: mgr}
-	ret, err := userMapper.DeleteById(138)
+	username := "gobatis" + fmt.Sprintf("%d", random())
+	table := TestTable{Username: username, Password: "123456"}
+	ret, id, err := userMapper.Save(table)
 	if err != nil {
-		fmt.Println(err.Error())
+		t.Fail()
+	}
+
+	ret2, err := userMapper.DeleteById(id)
+	if err != nil {
+		t.Fail()
+	}
+
+	if ret2 != 1 {
+		t.Fail()
 	}
 	fmt.Println(ret)
 }
@@ -136,24 +168,66 @@ func TestUserMapperImpl_Delete(t *testing.T) {
 func TestUserMapperImpl_DeleteBatch(t *testing.T) {
 	mgr := gobatis.NewSessionManager(connect())
 	userMapper := BaseMapper[TestTable]{SessMgr: mgr}
-	var ids []any
-	ids = append(ids, 135)
-	ids = append(ids, 136)
-	ids = append(ids, 137)
-	ret, err := userMapper.DeleteBatchIds(ids)
+
+	var entities []TestTable
+	username1 := "gobatis" + fmt.Sprintf("%d", random())
+	username2 := "gobatis" + fmt.Sprintf("%d", random())
+	username3 := "gobatis" + fmt.Sprintf("%d", random())
+	id1 := random()
+	id2 := random()
+	id3 := random()
+	table1 := TestTable{Id: id1, Username: username1, Password: "123456"}
+	table2 := TestTable{Id: id2, Username: username2, Password: "123456"}
+	table3 := TestTable{Id: id3, Username: username3, Password: "123456"}
+	entities = append(entities, table1)
+	entities = append(entities, table2)
+	entities = append(entities, table3)
+
+	ret, id, err := userMapper.SaveBatch(entities...)
 	if err != nil {
-		fmt.Println(err.Error())
+		t.Fail()
 	}
-	fmt.Println(ret)
+	fmt.Println(ret, id)
+
+	var ids []any
+	ids = append(ids, id1)
+	ids = append(ids, id2)
+	ids = append(ids, id3)
+	ret, err = userMapper.DeleteBatchIds(ids)
+	if err != nil {
+		t.Fail()
+	}
+	if ret != 3 {
+		t.Fail()
+	}
+	fmt.Println("ret", ret)
 }
 
 func TestUserMapperImpl_UpdateById(t *testing.T) {
 	mgr := gobatis.NewSessionManager(connect())
 	userMapper := BaseMapper[TestTable]{SessMgr: mgr}
-	var entity = TestTable{Id: 1, Username: "zouchangfu000", Password: "123456"}
-	ret, err := userMapper.UpdateById(entity)
+
+	uuid := fmt.Sprintf("%d", random())
+	table := TestTable{Username: "gobatis" + uuid, Password: "123456"}
+	ret, id, err := userMapper.Save(table)
 	if err != nil {
-		fmt.Println(err.Error())
+		t.Fail()
+	}
+	fmt.Println(ret, id)
+
+	var entity = TestTable{Id: id, Username: "gobatis", Password: "123456"}
+	id, err = userMapper.UpdateById(entity)
+	if err != nil {
+		t.Fail()
+	}
+
+	if id != 1 {
+		t.Fail()
 	}
 	fmt.Println(ret)
+}
+
+func random() int64 {
+	intn := rand.Intn(100000000)
+	return int64(intn)
 }

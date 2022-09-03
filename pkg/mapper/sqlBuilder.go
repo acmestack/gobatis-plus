@@ -169,7 +169,7 @@ func (sqlBuilder *SqlBuilder[T]) buildInsertColumnMapping(entities ...T) (map[st
 			v := entityValue.Field(i)
 			mapping := sqlBuilder.getMappingSeq()
 			switch iv := v.Interface().(type) {
-			case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+			case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
 				paramMap[mapping] = fmt.Sprintf("%d", iv)
 			case string:
 				paramMap[mapping] = iv
@@ -199,7 +199,7 @@ func (sqlBuilder *SqlBuilder[T]) buildUpdateColumnMapping(entity T) (map[string]
 		fieldValue := entityValue.Field(i).Interface()
 		var mapping string
 		switch v := fieldValue.(type) {
-		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
 			idStr := fmt.Sprintf("%d", v)
 			mapping = sqlBuilder.getMappingSeq()
 			paramMap[mapping] = idStr
@@ -242,7 +242,7 @@ func (sqlBuilder *SqlBuilder[T]) buildCondition(conditions []any) (string, map[s
 					}
 					mapping := sqlBuilder.getMappingSeq()
 					switch iv := elemV.Interface().(type) {
-					case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+					case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
 						paramMap[mapping] = fmt.Sprintf("%d", iv)
 					case string:
 						paramMap[mapping] = iv
@@ -257,7 +257,7 @@ func (sqlBuilder *SqlBuilder[T]) buildCondition(conditions []any) (string, map[s
 			} else {
 				mapping := sqlBuilder.getMappingSeq()
 				switch iv := paramValue.value.(type) {
-				case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+				case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
 					paramMap[mapping] = fmt.Sprintf("%d", iv)
 				case string:
 					paramMap[mapping] = iv
