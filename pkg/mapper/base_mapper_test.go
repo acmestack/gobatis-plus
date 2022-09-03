@@ -50,7 +50,7 @@ func TestUserMapperImpl_SelectOne(t *testing.T) {
 	mgr := gobatis.NewSessionManager(connect())
 	userMapper := BaseMapper[TestTable]{SessMgr: mgr}
 	queryWrapper := &QueryWrapper[TestTable]{}
-	queryWrapper.Eq("username", "zouchangfu").Select("username", "password")
+	queryWrapper.Eq("username", "gobatis").Select("username", "password")
 	entity, err := userMapper.SelectOne(queryWrapper)
 	if err != nil {
 		fmt.Println(err.Error())

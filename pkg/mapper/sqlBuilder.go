@@ -15,44 +15,34 @@ type SqlBuilder[T any] struct {
 }
 
 func (sqlBuilder *SqlBuilder[T]) BuildSelectSql(queryWrapper *QueryWrapper[T], columns string) (map[string]any, string, string) {
-	// 构建需要查询的字段，如果查询条件没有传入的话，默认查询所有
 	if stringsx.Empty(columns) {
 		// eg: columnName1,columnName2,columnName3
 		columns = sqlBuilder.buildSelectColumns(queryWrapper)
 	}
 
-	// 获取表名称
 	tableName := sqlBuilder.getTableName()
 
-	// 构建查询条件
 	// eg: columnName1 = #{mapping1} and columnName2 = #{mapping1}
 	sqlCondition, paramMap := sqlBuilder.buildCondition(queryWrapper.Conditions)
 
-	// 构建sql
 	// eg: SELECT * FROM WHERE columnName = #{mapping1} and columnName = #{mapping1}
 	sql := sqlBuilder.onBuildSelectSql(columns, tableName, sqlCondition)
 
-	// 构建sqlId
 	sqlId := sqlBuilder.buildSqlId(constants.SELECT)
 	return paramMap, sql, sqlId
 }
 
 func (sqlBuilder *SqlBuilder[T]) BuildInsertSql(entity ...T) (map[string]any, string, string) {
-	// 获取表名
 	tableName := sqlBuilder.getTableName()
 
-	// 获取插入字段
 	// eg：columnName1,columnName2,columnName3
 	columns := sqlBuilder.buildInsertColumns()
 
-	// 构建插入语句后半部分
 	// eg：(#{mapping1},#{mapping2},#{mapping3})
 	paramMap, columnMappings := sqlBuilder.buildInsertColumnMapping(entity...)
 
-	// 构建sql
 	sql := sqlBuilder.onBuildInsertSql(tableName, columns, columnMappings)
 
-	// 构建sqlId
 	sqlId := sqlBuilder.buildSqlId(constants.INSERT)
 	return paramMap, sql, sqlId
 }
@@ -61,16 +51,13 @@ func (sqlBuilder *SqlBuilder[T]) BuildUpdateSql(entity T, updateWrapper *UpdateW
 	tableName := sqlBuilder.getTableName()
 	paramMap, columnMapping := sqlBuilder.buildUpdateColumnMapping(entity)
 
-	// 构建查询条件
 	// eg: columnName1 = #{mapping1} and columnName2 = #{mapping1}
 	sqlCondition, paramConditionMap := sqlBuilder.buildCondition(updateWrapper.Conditions)
 	for k, v := range paramConditionMap {
 		paramMap[k] = v
 	}
-	// 构建更新语句
 	sql := sqlBuilder.onBuildUpdateSql(tableName, columnMapping, sqlCondition)
 
-	// 构建sqlId
 	sqlId := sqlBuilder.buildSqlId(constants.UPDATE)
 	return paramMap, sql, sqlId
 }
@@ -104,7 +91,6 @@ func (sqlBuilder *SqlBuilder[T]) onBuildInsertSql(tableName string, columns stri
 	builder := stringsx.Builder{}
 	builder.JoinString(sql)
 	for i, columnMapping := range columnMappings {
-		// 跳过第一次，因为上面已经使用了
 		if i == 0 {
 			continue
 		}
@@ -165,7 +151,6 @@ func (sqlBuilder *SqlBuilder[T]) buildInsertColumnMapping(entities ...T) (map[st
 			if column == "" {
 				continue
 			}
-			// 构建columnMapping值
 			v := entityValue.Field(i)
 			mapping := sqlBuilder.getMappingSeq()
 			switch iv := v.Interface().(type) {
@@ -192,7 +177,6 @@ func (sqlBuilder *SqlBuilder[T]) buildUpdateColumnMapping(entity T) (map[string]
 	for i := 0; i < numField; i++ {
 		tag := entityType.Field(i).Tag
 		column := tag.Get(constants.COLUMN)
-		// 如果是等于Id的话也需要跳过
 		if column == "" || constants.ID == column {
 			continue
 		}
@@ -224,10 +208,8 @@ func (sqlBuilder *SqlBuilder[T]) getTableName() string {
 func (sqlBuilder *SqlBuilder[T]) buildCondition(conditions []any) (string, map[string]any) {
 	var paramMap = map[string]any{}
 	build := strings.Builder{}
-	// 遍历所有的条件参数
 	for _, v := range conditions {
-		// 如果是ParamValue的话，通过#{} 拼接数据，并且把value值存储到paramMap中，方便后面使用
-		// ParamValue 存储的是查询条件具体的值
+		// if v is ParamValue,use #{} to build sql
 		if paramValue, ok := v.(ParamValue); ok {
 			rt := reflect.TypeOf(paramValue.value)
 			rv := reflect.ValueOf(paramValue.value)

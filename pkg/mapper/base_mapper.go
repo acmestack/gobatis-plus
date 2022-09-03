@@ -29,7 +29,7 @@ type BaseMapper[T any] struct {
 }
 
 func (userMapper *BaseMapper[T]) SelectList(queryWrapper *QueryWrapper[T]) ([]T, error) {
-	// 初始化queryWrapper，如果queryWrapper是空的，需要初始化一个新的
+	// if queryWrapper is nil ,need to build a new queryWrapper
 	queryWrapper = userMapper.initQueryWrapper(queryWrapper)
 
 	builder := SqlBuilder[T]{}
@@ -41,7 +41,6 @@ func (userMapper *BaseMapper[T]) SelectList(queryWrapper *QueryWrapper[T]) ([]T,
 		return nil, err
 	}
 
-	// 创建会话查询数据
 	sess := userMapper.SessMgr.NewSession()
 	var results []T
 	err = sess.Select(sqlId).Param(paramMap).Result(&results)
@@ -63,8 +62,6 @@ func (userMapper *BaseMapper[T]) SelectById(id any) (T, error) {
 	builder := SqlBuilder[T]{}
 	paramMap, sql, sqlId := builder.BuildSelectSql(queryWrapper, "")
 
-	// 注册sql
-
 	err := gobatis.RegisterSql(sqlId, sql)
 	defer gobatis.UnregisterSql(sqlId)
 	var entity T
@@ -72,7 +69,6 @@ func (userMapper *BaseMapper[T]) SelectById(id any) (T, error) {
 		return entity, err
 	}
 
-	// 创建会话查询数据
 	sess := userMapper.SessMgr.NewSession()
 	err = sess.Select(sqlId).Param(paramMap).Result(&entity)
 	if err != nil {
@@ -94,7 +90,6 @@ func (userMapper *BaseMapper[T]) SelectBatchIds(ids []any) ([]T, error) {
 		return nil, err
 	}
 
-	// 创建会话查询数据
 	sess := userMapper.SessMgr.NewSession()
 	var arr []T
 	err = sess.Select(sqlId).Param(paramMap).Result(&arr)
@@ -106,7 +101,6 @@ func (userMapper *BaseMapper[T]) SelectBatchIds(ids []any) ([]T, error) {
 }
 
 func (userMapper *BaseMapper[T]) SelectOne(queryWrapper *QueryWrapper[T]) (T, error) {
-	// 初始化queryWrapper，如果queryWrapper是空的，需要初始化一个新的
 	queryWrapper = userMapper.initQueryWrapper(queryWrapper)
 
 	builder := SqlBuilder[T]{}
@@ -119,7 +113,6 @@ func (userMapper *BaseMapper[T]) SelectOne(queryWrapper *QueryWrapper[T]) (T, er
 		return entity, err
 	}
 
-	// 创建会话查询数据
 	sess := userMapper.SessMgr.NewSession()
 	err = sess.Select(sqlId).Param(paramMap).Result(&entity)
 	if err != nil {
@@ -130,7 +123,7 @@ func (userMapper *BaseMapper[T]) SelectOne(queryWrapper *QueryWrapper[T]) (T, er
 }
 
 func (userMapper *BaseMapper[T]) SelectCount(queryWrapper *QueryWrapper[T]) (int64, error) {
-	// 初始化queryWrapper，如果queryWrapper是空的，需要初始化一个新的
+
 	queryWrapper = userMapper.initQueryWrapper(queryWrapper)
 
 	builder := SqlBuilder[T]{}
@@ -142,7 +135,6 @@ func (userMapper *BaseMapper[T]) SelectCount(queryWrapper *QueryWrapper[T]) (int
 		return 0, err
 	}
 
-	// 创建会话查询数据
 	sess := userMapper.SessMgr.NewSession()
 	var count int64
 	err = sess.Select(sqlId).Param(paramMap).Result(&count)
@@ -178,7 +170,6 @@ func (userMapper *BaseMapper[T]) SaveBatch(entities ...T) (int64, int64, error) 
 	builder := SqlBuilder[T]{}
 	paramMap, sql, sqlId := builder.BuildInsertSql(entities...)
 
-	// 注册sql
 	err := gobatis.RegisterSql(sqlId, sql)
 	if err != nil {
 		return 0, 0, err
@@ -259,7 +250,6 @@ func (userMapper *BaseMapper[T]) UpdateById(entity T) (int64, error) {
 
 	sess := userMapper.SessMgr.NewSession()
 
-	// 注册sql
 	err := gobatis.RegisterSql(sqlId, sql)
 	defer gobatis.UnregisterSql(sqlId)
 	if err != nil {
