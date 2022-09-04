@@ -15,27 +15,4 @@
  * limitations under the License.
  */
 
-package plugin
-
-import "k8s.io/gengo/types"
-
-var (
-	gPlugins = []Plugin{
-		&mapperPlugin{},
-		&dataPlugin{},
-	}
-)
-
-func FindPlugin(t *types.Type) Plugin {
-	for i := len(gPlugins) - 1; i >= 0; i-- {
-		v := gPlugins[i]
-		if v.CouldHandle(t) {
-			return v
-		}
-	}
-	return nil
-}
-
-func RegisterPlugin(plugin Plugin) {
-	gPlugins = append(gPlugins, plugin)
-}
+package mapper
