@@ -17,6 +17,7 @@
 package mapper
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"github.com/acmestack/gobatis"
@@ -37,9 +38,35 @@ func connect() factory.Factory {
 			Port:     3306,
 			DBName:   "test",
 			Username: "root",
-			Password: "123456",
+			Password: "test",
 			Charset:  "utf8",
 		}))
+}
+
+func TestInitTable(t *testing.T) {
+	sql_table := "CREATE TABLE IF NOT EXISTS `test_table` (" +
+		"`id` int(11) NOT NULL AUTO_INCREMENT," +
+		"`username` varchar(255) DEFAULT NULL," +
+		"`password` varchar(255) DEFAULT NULL," +
+		"`createTime` datetime DEFAULT NULL," +
+		"PRIMARY KEY (`id`)" +
+		") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+
+	db, err := sql.Open("mysql", "test:test@tcp(localhost:3306)/test?charset=utf8")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	_, err = db.Exec(sql_table)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = db.Exec("DELETE FROM test_table")
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 type TestTable struct {
