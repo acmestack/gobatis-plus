@@ -14,35 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package constants
 
-package mapper
+const SELECT_SQL = "SELECT #{columns} FROM #{tableName} WHERE #{conditions}"
 
-type Wrapper[T any] interface {
-	Eq(column string, val any) Wrapper[T]
+const INSERT_SQL = "INSERT INTO #{tableName} (#{columns}) VALUES (#{columnMapping})"
 
-	Ne(column string, val any) Wrapper[T]
+const UPDATEBYID_SQL = "UPDATE #{tableName} SET #{columnMapping} WHERE #{conditions}"
 
-	Gt(column string, val any) Wrapper[T]
-
-	Ge(column string, val any) Wrapper[T]
-
-	Lt(column string, val any) Wrapper[T]
-
-	Le(column string, val any) Wrapper[T]
-
-	Like(column string, val any) Wrapper[T]
-
-	NotLike(column string, val any) Wrapper[T]
-
-	LikeLeft(column string, val any) Wrapper[T]
-
-	LikeRight(column string, val1 any) Wrapper[T]
-
-	In(column string, val ...any) Wrapper[T]
-
-	And() Wrapper[T]
-
-	Or() Wrapper[T]
-
-	Select(columns ...string) Wrapper[T]
-}
+const DELETEBYID_SQL = "delete from #{tableName} where #{conditions}"
