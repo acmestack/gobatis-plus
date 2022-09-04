@@ -19,6 +19,7 @@ package main
 
 import (
 	"flag"
+	"k8s.io/klog/v2"
 
 	"github.com/acmestack/gobatis-plus/cmd/gobatis-plus/customargs"
 	"github.com/acmestack/gobatis-plus/pkg/generator"
