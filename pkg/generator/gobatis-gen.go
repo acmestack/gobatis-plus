@@ -20,6 +20,7 @@ package generator
 import (
 	"fmt"
 	"io"
+	"k8s.io/klog/v2"
 	"path/filepath"
 	"strings"
 
