@@ -38,6 +38,8 @@ type Wrapper[T any] interface {
 
 	LikeRight(column string, val1 any) Wrapper[T]
 
+	In(column string, val ...any) Wrapper[T]
+
 	And() Wrapper[T]
 
 	Or() Wrapper[T]
